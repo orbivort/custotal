@@ -1,0 +1,19 @@
+# Prettier reads BOTH .gitignore and .prettierignore by default (`--ignore-path`
+# defaults to [.gitignore, .prettierignore]), so entries here are additive: only
+# output .gitignore does not already cover (Prisma's generated client) and the
+# tracked lockfile genuinely need listing. The other entries are kept explicit so
+# this file stays correct if Prettier is run with a custom --ignore-path.
+packages/*/dist
+packages/*/coverage
+packages/*/node_modules
+# Prisma's generated client (packages/backend/src/generated/prisma) — a disposable
+# build artifact produced by `pnpm db:generate`; never reformat it.
+packages/*/src/generated
+packages/*/playwright-report
+packages/*/test-results
+packages/*/e2e/.auth
+node_modules
+temp
+pnpm-lock.yaml
+.codebuddy
+.svn

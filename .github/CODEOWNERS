@@ -1,0 +1,19 @@
+# Default owner for everything in the repository.
+# Reviewers are requested automatically for pull requests touching the paths below.
+#
+# Replace the placeholder handles with the real maintainer team/user names before release.
+
+*                       @orbivort
+
+# Backend (Express API, Prisma schema/migrations, operational scripts).
+/packages/backend/      @orbivort
+
+# Frontend (React SPA, MSW mocks).
+/packages/frontend/     @orbivort
+
+# Documentation and community health.
+/docs/                  @orbivort
+/*.md                   @orbivort
+
+# CI/CD and security configuration.
+/.github/               @orbivort

@@ -1,0 +1,92 @@
+{
+  "name": "custotal",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Self-hosted, single-tenant customer management (CRM) workspace for small sales teams.",
+  "license": "Apache-2.0",
+  "author": "The Custotal Authors",
+  "homepage": "https://github.com/orbivort/custotal#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/orbivort/custotal.git"
+  },
+  "bugs": {
+    "url": "https://github.com/orbivort/custotal/issues"
+  },
+  "keywords": [
+    "crm",
+    "customer-management",
+    "sales",
+    "self-hosted",
+    "express",
+    "react",
+    "prisma",
+    "postgresql",
+    "typescript"
+  ],
+  "type": "module",
+  "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": "^24.19.0",
+    "pnpm": "^11.21.0"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "^24.19.0",
+      "onFail": "warn"
+    }
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @custotal/frontend --filter @custotal/backend dev",
+    "build": "pnpm --filter @custotal/frontend build",
+    "preview": "pnpm --filter @custotal/frontend preview",
+    "typecheck": "pnpm --filter @custotal/frontend typecheck && pnpm --filter @custotal/backend typecheck",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "lint:css": "stylelint \"packages/frontend/src/**/*.css\"",
+    "lint:css:fix": "stylelint \"packages/frontend/src/**/*.css\" --fix",
+    "lint:all": "pnpm lint && pnpm lint:css && pnpm format:check",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
+    "db:generate": "pnpm --filter @custotal/backend db:generate",
+    "db:migrate": "pnpm --filter @custotal/backend db:migrate",
+    "db:create-admin": "pnpm --filter @custotal/backend db:create-admin",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:frontend": "vitest run --project frontend",
+    "test:backend": "vitest run --project backend-unit --project backend-integration --project backend-e2e",
+    "test:backend:unit": "vitest run --project backend-unit",
+    "test:backend:integration": "vitest run --project backend-integration",
+    "test:backend:e2e": "vitest run --project backend-e2e",
+    "test:e2e": "pnpm --filter @custotal/frontend test:e2e",
+    "test:e2e:install": "pnpm --filter @custotal/frontend test:e2e:install",
+    "docker:build": "docker compose --env-file .env.docker build",
+    "docker:up": "docker compose --env-file .env.docker up -d --build",
+    "docker:down": "docker compose --env-file .env.docker down",
+    "docker:ps": "docker compose --env-file .env.docker ps",
+    "docker:logs": "docker compose --env-file .env.docker logs -f",
+    "docker:pull": "docker compose --env-file .env.docker pull",
+    "docker:migrate": "docker compose --env-file .env.docker run --rm migrate",
+    "docker:create-admin": "docker compose --env-file .env.docker exec -e ADMIN_EMAIL -e ADMIN_NAME -e ADMIN_PASSWORD backend node scripts/create-admin.ts",
+    "docker:backup": "node scripts/docker-backup.ts",
+    "docker:dev": "docker compose --env-file .env.docker -f docker-compose.yml -f docker-compose.dev.yml up --build",
+    "audit": "pnpm audit --registry https://registry.npmjs.org/",
+    "outdated": "pnpm outdated"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "^10.10.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.6",
+    "eslint-plugin-security": "^4.0.1",
+    "prettier": "^3.9.6",
+    "stylelint": "^17.15.0",
+    "stylelint-config-standard": "^40.0.0",
+    "typescript": "catalog:",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "catalog:"
+  }
+}

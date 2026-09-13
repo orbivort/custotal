@@ -1,0 +1,556 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+   Custotal design system — "Institutional Ledger"
+
+   A self-hosted record-keeping tool for a small sales team, not a SaaS
+   product. The visual language therefore borrows from ledgers, filings and
+   official stationery rather than from marketing dashboards:
+
+   - Canvas is a *warm* archival paper, not the cool blueprint gray that B2B
+     tooling reaches for by default. It reads as documents and archives, and
+     it is easier on the eye across a long working day.
+   - Plates (cards, panels, menus, dialogs) are pure white, separated from the
+     canvas by one warm hairline and a low, warm-tinted shadow. No glass, no
+     glow, no gradient.
+   - Ink is a cool near-black. Warm paper against cool ink is what makes thin
+     rules and small type feel printed rather than rendered.
+   - Exactly one accent: a deep, desaturated midnight navy. It is deliberately
+     darker and grayer than the bright "tech blue" of SaaS products, and it is
+     never used as a gradient.
+   - A single brass secondary carries attention and warning states, the way a
+     seal or a stamp carries emphasis on a document.
+
+   Configuration is CSS-first (Tailwind v4):
+   - Every token lives in @theme — the single source of truth.
+   - Reusable patterns are declared with @utility, so they compose with
+     variants (hover:plate, md:plate) and work inside @apply. Tailwind only
+     emits the ones that are used, so unused recipes cost nothing.
+   - Animations are --animate-* tokens with their keyframes scoped inside
+     @theme, so they tree-shake and support variants
+     (e.g. data-[state=open]:animate-scale-in).
+
+   TOKEN NAMES
+   `paper`, `cream` and `forest` predate this revision. They are kept as the
+   public, source-compatible API because 45+ components (and their class
+   assertions) depend on them. Read them as:
+     paper  -> the application canvas
+     cream  -> a white plate (card, panel, dialog) — NOT a cream colour
+     forest -> the primary accent, a deep navy — NOT a green
+   New work should prefer the semantic tokens defined alongside them
+   (surface-*, line-*, fill-*, ring, scrim), which say what they are for.
+   ------------------------------------------------------------------------- */
+
+@theme {
+  /* =======================================================================
+     1. SURFACES
+     Warm archival paper; pure-white plates for anything that carries content;
+     two quiet steps for recessed or banded regions.
+     ===================================================================== */
+  --color-paper: #f4f3ef; /* app canvas */
+  --color-surface-tint: #f9f8f5; /* banded rows, quiet section fills */
+  --color-cream: #fff; /* plate: cards, panels, menus, dialogs */
+  --color-surface-sunken: #ebe9e2; /* wells: inline code, insets, empty slots */
+
+  /* =======================================================================
+     2. RULES
+     `border` is applied to *everything* by the base layer below, so a bare
+     `border` or `divide-y` is always the correct hairline weight.
+     `line-strong` is for edges that must read as a boundary (wells, inputs
+     that need more definition).
+     ===================================================================== */
+  --color-border: #e1dfd7;
+  --color-line-strong: #cfcbc0;
+
+  /* =======================================================================
+     3. FILLS — neutral interactive states
+     One hover fill and one pressed/selected fill for every neutral control:
+     buttons, menu items, nav rows and dense data rows. This replaces the
+     ad-hoc `ink/5` and `ink/[0.02]` mixes that used to be inlined per
+     component, so hover weight can be tuned once, for the whole app.
+     ===================================================================== */
+  --color-fill: #efede7;
+  --color-fill-strong: #e4e1d9;
+
+  /* =======================================================================
+     4. INK — the text ramp
+     Three steps, each validated against the canvas: ink 17.5:1, ink-muted
+     7.1:1, ink-faint 4.8:1 — the faint step still clears WCAG AA for the
+     small metadata type it is used on.
+     ===================================================================== */
+  --color-ink: #17191d;
+  --color-ink-muted: #4b525c;
+  --color-ink-faint: #656c78;
+
+  /* =======================================================================
+     5. PRIMARY — midnight navy
+     One accent, four values: the base, a lighter step for dark surfaces, a
+     darker step for hover/pressed, and the focus ring. Nothing else in the
+     palette is allowed to compete with it.
+     ===================================================================== */
+  --color-forest: #1f3f66;
+  --color-forest-light: #2c5586;
+  --color-forest-dark: #16304f;
+  --color-ring: #1f3f66;
+
+  /* =======================================================================
+     6. STATUS
+     Muted and comparable in weight to the ink ramp — a status chip states a
+     fact, it does not shout. Brass doubles as the system's warm secondary.
+     ===================================================================== */
+  --color-success: #186b44;
+  --color-danger: #a52a21;
+  --color-warn: #7d6234;
+  --color-info: #215f74;
+
+  /* =======================================================================
+     7. OVERLAY & CHROME
+     Kept out of component code so the scrim and the scrollbar can be retuned
+     in one place.
+     ===================================================================== */
+  --color-scrim: rgb(23 25 29 / 42%);
+  --color-scrollbar: #c9c5bb;
+
+  /* =======================================================================
+     8. TYPE
+     IBM Plex Sans and IBM Plex Mono — a technical-humanist superfamily drawn
+     for exactly this kind of interface. Self-hosted via @fontsource (see
+     src/main.tsx); no external font host is contacted.
+     ===================================================================== */
+  --font-display: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  /* Type scale — data-dense numeric sizes. Names match their px size, so
+     intent is obvious (text-13 renders at 13px). This replaces the arbitrary
+     text-[Npx] values that used to be scattered across components. */
+  --text-9: 0.5625rem;
+  --text-10: 0.625rem;
+  --text-11: 0.6875rem;
+  --text-12: 0.75rem;
+  --text-13: 0.8125rem;
+  --text-15: 0.9375rem;
+  --text-17: 1.0625rem;
+  --text-19: 1.1875rem;
+  --text-22: 1.375rem;
+  --text-26: 1.625rem;
+
+  /* Letter spacing — uppercase micro-labels */
+  --tracking-label: 0.08em; /* table heads, dense meta */
+  --tracking-eyebrow: 0.16em; /* section eyebrows */
+
+  /* =======================================================================
+     9. DENSITY
+     The four rhythms that carry every data-dense surface. Named so the
+     rhythm is reviewable and tunable in one place instead of being
+     re-derived from px values in each screen.
+     ===================================================================== */
+  --spacing-cell-x: 1.25rem; /* 20px — table/list cell padding, inline */
+  --spacing-cell-y: 0.75rem; /* 12px — table/list cell padding, block */
+  --spacing-panel: 1.25rem; /* 20px — panel and dialog interior */
+  --spacing-gutter: 2rem; /* 32px — page gutter */
+
+  /* =======================================================================
+     10. RADIUS
+     Declared explicitly and kept slightly tight: square-ish corners read as
+     official, pill-ish ones read as consumer.
+     ===================================================================== */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.625rem;
+  --radius-2xl: 0.75rem;
+
+  /* =======================================================================
+     11. ELEVATION
+     Low-spread and warm-tinted, so plates sit on the paper instead of
+     floating above it. Opacity stays under 10% except for the two largest
+     steps, which are only used for dialogs and menus.
+     ===================================================================== */
+  --shadow-xs: 0 1px 1px 0 rgb(28 26 22 / 4%);
+  --shadow-sm: 0 1px 2px 0 rgb(28 26 22 / 6%);
+  --shadow-md: 0 1px 3px 0 rgb(28 26 22 / 7%), 0 1px 2px -1px rgb(28 26 22 / 5%);
+  --shadow-lg: 0 4px 8px -2px rgb(28 26 22 / 8%), 0 2px 4px -1px rgb(28 26 22 / 4%);
+  --shadow-xl: 0 12px 20px -6px rgb(28 26 22 / 10%), 0 4px 8px -2px rgb(28 26 22 / 5%);
+  --shadow-2xl: 0 20px 40px -12px rgb(28 26 22 / 18%), 0 8px 16px -4px rgb(28 26 22 / 8%);
+
+  /* =======================================================================
+     12. MOTION
+     Quick and functional, and deliberately shared: every transition in the
+     app runs on this curve, so interactions feel like a page turning rather
+     than a bounce.
+     ===================================================================== */
+  --default-transition-duration: 150ms;
+  --default-transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+
+  --animate-fade-up: fade-up 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-fade-in: fade-in 0.2s ease-out both;
+  --animate-scale-in: scale-in 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+
+  /* End at transform: none — fill-mode: both would otherwise leave a
+     persistent transform on page containers, which creates a stacking
+     context and a containing block for position: fixed descendants
+     (dialogs, popovers), letting the fixed Topbar/Sidebar paint over them. */
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.985);
+    }
+
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Figures must line up in every column of every table, and the browser must
+     never fake a weight or a slant we did not load. */
+  body {
+    margin: 0;
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+    font-synthesis: none;
+  }
+
+  /* Default every border and divider to the hairline. Tailwind v4 defaults
+     border-color to currentColor, which makes `divide-y` lists and bare
+     `border` elements render in the text colour. Utilities such as
+     border-ink/15 still override this where a stronger rule is intended. */
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-border);
+  }
+
+  /* --- Typography ------------------------------------------------------- */
+
+  /* Heading scale — sans throughout; weight and tracking carry the hierarchy
+     rather than size alone. Headings are read as words, not as columns of
+     figures, so they opt out of the tabular numerals set on body. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--color-ink);
+    font-variant-numeric: proportional-nums;
+    text-wrap: balance;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+    line-height: 1.2;
+    letter-spacing: -0.016em;
+  }
+
+  h2 {
+    font-size: 1.1875rem;
+    line-height: 1.25;
+    letter-spacing: -0.012em;
+  }
+
+  h3 {
+    font-size: 1rem;
+    line-height: 1.3;
+    letter-spacing: -0.006em;
+  }
+
+  h4 {
+    font-size: 0.8125rem;
+    line-height: 1.4;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  abbr[title] {
+    cursor: help;
+    text-decoration: underline dotted;
+  }
+
+  mark {
+    color: inherit;
+    background-color: color-mix(in srgb, var(--color-forest) 16%, transparent);
+  }
+
+  /* Identifiers and reference codes are always monospaced and always
+     unambiguous — a zero is never an O. */
+  code,
+  kbd,
+  samp {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+
+  hr {
+    margin: 0;
+    border: 0;
+    border-top: 1px solid var(--color-border);
+  }
+
+  /* --- Forms ------------------------------------------------------------ */
+
+  /* Form controls inherit the sans family for visual consistency. */
+  button,
+  input,
+  optgroup,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  :disabled {
+    cursor: not-allowed;
+  }
+
+  ::placeholder {
+    color: var(--color-ink-faint);
+    opacity: 1; /* Firefox otherwise fades the placeholder a second time. */
+  }
+
+  /* Chrome repaints autofilled fields with its own yellow, ignoring the
+     palette. -webkit-* is the only hook it exposes; restore our surface and
+     ink so the sign-in form stays on-brand. */
+  /* stylelint-disable property-no-vendor-prefix, selector-pseudo-class-no-unknown --
+     no standard equivalent for -webkit-autofill / -webkit-text-fill-color. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    caret-color: var(--color-ink);
+    -webkit-text-fill-color: var(--color-ink);
+    -webkit-box-shadow: 0 0 0 100rem var(--color-surface-tint) inset;
+  }
+  /* stylelint-enable property-no-vendor-prefix, selector-pseudo-class-no-unknown */
+
+  /* --- Data tables ------------------------------------------------------ */
+
+  /* Five screens share one table anatomy. Encoding the defaults here means a
+     new table is correct without restating the recipe; utilities on the
+     element still win, so existing markup renders exactly as before. */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  th,
+  td {
+    padding: var(--spacing-cell-y) var(--spacing-cell-x);
+    text-align: left;
+  }
+
+  th {
+    font-weight: 600;
+  }
+
+  /* Column heads are micro-labels: small, uppercase, tracked, and recessive
+     enough that the data below them stays the loudest thing on the row. */
+  thead th {
+    font-size: var(--text-12);
+    font-weight: 600;
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--color-ink-faint);
+  }
+
+  /* --- Interaction ------------------------------------------------------ */
+
+  ::selection {
+    background-color: color-mix(in srgb, var(--color-forest) 18%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  /* --- Scrollbars ------------------------------------------------------- */
+
+  /* Modern path: Firefox, Chromium 121+ and Safari 18.2+. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-scrollbar) transparent;
+  }
+
+  /* Legacy path for engines without `scrollbar-width`. Styling
+     ::-webkit-scrollbar opts a browser out of `scrollbar-width`, so this is
+     gated behind a feature query rather than applied unconditionally. */
+  @supports not (scrollbar-width: thin) {
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+
+    ::-webkit-scrollbar-track,
+    ::-webkit-scrollbar-corner {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      border: 3px solid transparent;
+      border-radius: 9999px;
+      background-color: var(--color-scrollbar);
+      background-clip: content-box;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background-color: var(--color-ink-faint);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* --- Touch ------------------------------------------------------------ */
+
+  /* Two adjustments that only apply where a finger is the input device, so
+     the desktop density above is left completely untouched.
+
+     1. Control type is lifted to the platform minimum. iOS Safari zooms the
+        viewport when a focused field renders below 16px, which throws the
+        whole page off-centre mid-form. Every control is 13–15px by design,
+        so without this the app is unusable on an iPhone.
+     2. Controls get a 44px minimum height. Padding alone leaves them around
+        34–38px, which is under the touch minimum for a primary action. */
+  @media (pointer: coarse) {
+    input,
+    select,
+    textarea {
+      font-size: 1rem;
+    }
+
+    input:not([type='checkbox'], [type='radio']),
+    select,
+    textarea {
+      min-height: 2.75rem;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Recipes
+   Declared as utilities so they compose with variants (hover:plate, md:plate)
+   and work with @apply. Tailwind only emits the recipes that are used, so
+   defining them costs nothing in the shipped CSS.
+   ------------------------------------------------------------------------- */
+
+/* Hairline — the system's only divider weight. */
+@utility hairline {
+  border-color: var(--color-border);
+}
+
+/* Eyebrow — the uppercase micro-label that sits above a value, a section or a
+   field group. */
+@utility eyebrow {
+  font-size: var(--text-11);
+  font-weight: 600;
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+}
+
+/* Plate — the standard white panel: card, menu, dialog, table frame. */
+@utility plate {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2xl);
+  background-color: var(--color-cream);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Well — a recessed surface for content that belongs *inside* the page:
+   inline code, keycaps, empty slots, read-only values. */
+@utility well {
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-sunken);
+}
+
+/* ---------------------------------------------------------------------------
+   Tap target
+
+   Widens the *hit* area of a small icon control to 44px without changing its
+   visual size, so a dense 28px row action still satisfies WCAG 2.5.5 on a
+   touch device. Gated to a coarse pointer: on a mouse the overlay would
+   silently enlarge hover regions and let neighbouring controls in a tight
+   cluster steal each other's clicks.
+
+   Use sparingly — only for controls that stand alone (a dialog close, a row's
+   trailing delete). Controls packed into an action cluster should instead be
+   given real padding, since overlapping hit areas make mis-taps more likely,
+   not less.
+
+   This lives in the components layer rather than in @utility on purpose: a
+   component class is outranked by utilities, so a host that carries its own
+   positioning — the `absolute` on a password-reveal button, say — keeps it.
+   The overlay then anchors to that positioned host, which is the same element
+   either way. @utility would instead put `position: relative` in open conflict
+   with `absolute`, decided by stylesheet order.
+   --------------------------------------------------------------------------- */
+
+@layer components {
+  .tap-target {
+    position: relative;
+  }
+
+  @media (pointer: coarse) {
+    .tap-target::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+      transform: translate(-50%, -50%);
+    }
+  }
+}

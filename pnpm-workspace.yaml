@@ -1,0 +1,70 @@
+# pnpm workspace & configuration
+# https://pnpm.io/settings
+#
+# pnpm >= 10 reads ALL settings from this file (camelCase keys).
+# `.npmrc` is reserved for registry/auth credentials only; do not put
+# install settings there.
+
+# --- Workspace layout -------------------------------------------------------
+packages:
+  - 'packages/*'
+
+# --- Catalogs: single source of truth for shared versions -------------------
+# Dependencies that multiple packages (or the root) share are defined once
+# here and referenced via the "catalog:" protocol in each package.json, so a
+# version bump touches a single place instead of every package.json.
+catalog:
+  typescript: ^6.0.3
+  '@types/node': ^24.13.3
+  # Vitest and its satellite packages MUST share one version across the whole
+  # workspace; the catalog guarantees that for root + every package.
+  vitest: ^4.1.10
+  '@vitest/coverage-v8': ^4.1.10
+
+# --- Dependency resolution --------------------------------------------------
+# The defaults are the recommended ones for a strict monorepo:
+#   nodeLinker: isolated   (no phantom deps, no hoisting surprises)
+#   autoInstallPeers: true (peers of workspace deps are installed)
+#   sharedWorkspaceLockfile: true (single lockfile for the whole workspace)
+# Only override them here when a package in the workspace needs otherwise.
+
+# --- Supply-chain security ---------------------------------------------------
+# Dependency lifecycle scripts are blocked unless explicitly approved
+# (strictDepBuilds: true). Keep this list to exactly the packages that
+# legitimately run a postinstall. Re-run `pnpm approve-builds` whenever you
+# add a dependency so new build scripts get reviewed instead of auto-allowed.
+allowBuilds:
+  '@prisma/engines': false # engines are fetched on `prisma generate`, not at install
+  msw: true
+  prisma: false # CLI postinstall is not needed; generate the client explicitly
+
+# pnpm v11 delays newly published releases by minimumReleaseAge
+# (default: 1440 min / 1 day) to dodge freshly-published supply-chain attacks.
+# Packages listed below bypass that gate when a release must be used now.
+minimumReleaseAgeExclude:
+  - eslint-plugin-react-refresh@0.5.6
+
+# --- Overrides ---------------------------------------------------------------
+# Force a safe version of transitive dependencies.
+# `@prisma/config` (pinned by `prisma` up to 7.10.0) depends on the
+# vulnerable deepmerge-ts@7.1.5 (GHSA-ggr8-5vv4-36mx / CVE-2026-40345, fixed
+# in 8.0.0). The override is safe: @prisma/config only merges plain
+# objects/arrays. Remove once Prisma depends on deepmerge-ts >= 8.
+#
+# The remaining overrides below patch advisories that no upstream release
+# fixes yet (all four are dev/transitive paths; see log.txt evaluation).
+overrides:
+  deepmerge-ts: 8.0.2
+  # GHSA-qqgx-2p2h-9c37 (ini <1.3.6): the abandoned global-prefix@3.0.0 chain
+  # under stylelint pins ini ^1.3.5, and current stylelint (17.15.0) still
+  # depends on global-modules ^2.0.0. Scoped to 1.3.5 so nothing else moves.
+  'ini@1.3.5': 1.3.7
+  # GHSA-93q8-gq69-wqmw (ansi-regex <5.0.1): @testing-library/dom@10.4.1 (the
+  # latest) pins pretty-format ^27.0.2, the last v27. Scoped to the v5 copy so
+  # the ESM-only ansi-regex@6 used elsewhere is NOT downgraded.
+  'ansi-regex@5.0.0': 5.0.1
+  # GHSA-3f6p-5ww8-9rcr / GHSA-rgwj-5xj2-c3m3 (mysql2): prisma@7.10.0 pins
+  # mysql2 to exactly 3.15.3 and is the latest stable. mysql2 ships only for
+  # the (unused) MySQL provider of the Prisma CLI; this project is PostgreSQL.
+  # Minimum safe would be 3.23.1; we track latest.
+  mysql2: 3.24.4

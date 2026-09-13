@@ -1,0 +1,216 @@
+# Release pipeline.
+#
+# Triggered when a SemVer tag (vX.Y.Z) is pushed, or manually for an existing
+# tag via workflow_dispatch. A manual dispatch must be made *against the tag* —
+# `gh workflow run release.yml --ref v1.0.0 -f tag=v1.0.0`, or the tag picked in
+# the UI's "Use workflow from" dropdown — because the checkout and the image
+# metadata both read the ref; the first step fails fast otherwise. It verifies
+# the tagged revision, builds the frontend bundle, and publishes a GitHub
+# Release with auto-generated notes and the built artifact attached.
+#
+# Once the release exists, the `images` job builds the backend and frontend
+# container images for linux/amd64 and linux/arm64 and pushes them to the GitHub
+# Container Registry, tagged with the release version. The backend publishes two
+# targets from one Dockerfile: the API (`runtime`) and the migration/operator
+# toolchain (`tools`, published as a `<version>-tools` tag variant of the same
+# repository). All images are published with an SBOM and a provenance
+# attestation; pin a released tag (never `latest`) when self-hosting — see
+# docs/self-hosting.md.
+#
+# The `gh` CLI is preinstalled on GitHub-hosted runners, so no third-party
+# release action is required.
+#
+# Also dispatched by release-finalize.yml once a release pull request is
+# merged: a tag pushed with GITHUB_TOKEN does not trigger other workflows, so
+# that job starts this one explicitly through the `tag` input below.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to (re)publish, e.g. v1.0.0'
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+# The tag being published: the pushed ref on a tag push, the `tag` input on a
+# manual dispatch. Derived once so the ref guard, the release step and every
+# image metadata step cannot disagree about which tag is being released.
+env:
+  RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Validate the release ref
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          set -euo pipefail
+          # Nothing else pins the revision: the checkout below defaults to
+          # `github.ref`, and the image metadata derives its SemVer tags from
+          # it too. A dispatch from a branch (e.g. `main` while typing the tag
+          # into the form) would therefore build the bundle and the images from
+          # that branch while labelling the GitHub Release with the tag. Require
+          # the tag itself — release-finalize.yml passes it via `--ref`, and the
+          # UI lists tags in the "Use workflow from" dropdown.
+          if [[ "${GITHUB_REF}" != "refs/tags/${TAG}" ]]; then
+            echo "::error::Expected ref refs/tags/${TAG}, got ${GITHUB_REF}."
+            echo "Re-run against the tag: gh workflow run release.yml --ref ${TAG} -f tag=${TAG}"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v5
+        with:
+          # Full history so `gh release create --generate-notes` can diff tags.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v5 # reads packageManager from package.json
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+      # The generated Prisma Client is gitignored, so it must be produced before
+      # the backend typecheck resolves its imports — the same prerequisite the
+      # `quality` job in ci.yml documents.
+      - run: pnpm db:generate
+      - run: pnpm typecheck
+      - run: pnpm test:frontend
+      - run: pnpm build
+
+      - name: Package frontend bundle
+        run: (cd packages/frontend/dist && zip -r "$GITHUB_WORKSPACE/custotal-frontend.zip" .)
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          set -euo pipefail
+          # Idempotent: a re-run (for example after a failed image build) must
+          # not fail on the release it already created, and must not clobber a
+          # release whose notes were edited by hand.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; keeping its notes and assets."
+          else
+            gh release create "$TAG" \
+              "$GITHUB_WORKSPACE/custotal-frontend.zip" \
+              --title "$TAG" \
+              --generate-notes \
+              --verify-tag
+          fi
+
+  images:
+    name: Publish container images (GHCR)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: release
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to the GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive backend image metadata
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/custotal-backend
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ env.RELEASE_TAG }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/backend/Dockerfile
+          target: runtime
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          sbom: true
+          provenance: true
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - name: Derive backend tools image metadata
+        id: meta-backend-tools
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/custotal-backend
+          # Same repository as the API image, published as a tag variant
+          # (v1.0.0-tools): the compose `migrate` service pulls the matching
+          # `<tag>-tools`, so both must be released together.
+          flavor: suffix=-tools
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ env.RELEASE_TAG }}
+
+      - name: Build and push backend tools image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/backend/Dockerfile
+          target: tools
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-backend-tools.outputs.tags }}
+          labels: ${{ steps.meta-backend-tools.outputs.labels }}
+          sbom: true
+          provenance: true
+          # Reuses the API build's `build`/`deps` layers (same scope), so this
+          # export is mostly cache hits.
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend-tools
+
+      - name: Derive frontend image metadata
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/custotal-frontend
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ env.RELEASE_TAG }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/frontend/Dockerfile
+          target: runtime
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          sbom: true
+          provenance: true
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend

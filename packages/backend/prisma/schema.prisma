@@ -1,0 +1,313 @@
+// Custotal backend schema — PostgreSQL 18+.
+// Mirrors the frontend domain model (packages/frontend/src/types/domain.ts) and the
+// MSW handler contract, extended with real-server concerns: hashed credentials,
+// DB-backed sessions, password-reset tokens, task completion history, soft deletes,
+// and optimistic-concurrency metadata.
+//
+// Notes on conventions:
+// - All primary keys and id-bearing columns are native `uuid` with a DB-side
+//   `uuidv7()` default (built-in since PostgreSQL 18). UUIDv7 keys are 16 bytes
+//   (vs ~26 for cuid text), time-ordered for near-sequential B-tree inserts, and
+//   non-enumerable — unlike `bigint` identity. Prisma exposes them as strings, so
+//   the API surface and the frontend domain model are unchanged.
+// - role/status/type/classification fields are String with service-layer validation so the
+//   exact API validation messages from the MSW contract are preserved.
+// - Audit references (createdBy / updatedBy / ownerId / assigneeId / responsibleUserId /
+//   fromStageId / toStageId / completedBy) are plain uuid scalars rather than FKs. This
+//   matches the reference mock behaviour where users may be deleted while historical
+//   records keep a dangling id, and avoids over-constraining soft-deleted / trashed records.
+// - User ids referenced by Session and PasswordResetToken ARE FKs with cascade delete.
+// - valueMinor is Int (integer minor units, e.g. $1,234.56 => 123456). See ADR-0006.
+
+// The Prisma 7 default generator: plain TypeScript emitted into the package's own
+// source tree instead of the deprecated "magic" node_modules location, so the client
+// is a first-class, disposable build artifact (`pnpm db:generate`, gitignored).
+// `importFileExtension = "ts"` is required because Node 24 runs these .ts sources
+// directly via type stripping and cannot resolve the default `.js` specifiers back
+// to the files on disk (see packages/backend/tsconfig.json).
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                 String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  name               String
+  email              String   @unique
+  role               String // admin | manager | rep | readonly
+  passwordHash       String
+  // True only when the invitation email could not be delivered at creation —
+  // the user then holds a temporary credential that must be rotated on login.
+  mustChangePassword Boolean  @default(false)
+  passwordChangedAt  DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  sessions           Session[]
+  resetTokens        PasswordResetToken[]
+
+  @@index([role])
+}
+
+model Session {
+  id           String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tokenHash    String   @unique // SHA-256 digest of the opaque cookie token
+  userId       String   @db.Uuid
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastActiveAt DateTime @default(now())
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tokenHash String    @unique // SHA-256 digest of the raw reset token
+  // Scopes the token to one flow so an invite link cannot be replayed against
+  // the reset endpoint and vice versa: "invite" | "reset".
+  purpose   String    @default("reset")
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model Stage {
+  id             String  @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  name           String
+  order          Int
+  winProbability Int
+  classification String // open | won | lost
+  opportunities  Opportunity[]
+
+  @@unique([name])
+}
+
+model Account {
+  id             String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  name           String
+  industry       String?
+  website        String?
+  phone          String?
+  billingAddress String?
+  ownerId        String         @db.Uuid
+  notes          String?
+  createdAt      DateTime       @default(now())
+  createdBy      String         @db.Uuid
+  updatedAt      DateTime       @updatedAt
+  updatedBy      String         @db.Uuid
+  deletedAt      DateTime?
+  links          ContactAccountLink[]
+  opportunities  Opportunity[]
+  interactions   Interaction[]
+  tasks          Task[]
+
+  @@index([ownerId])
+  @@index([deletedAt])
+  @@index([updatedAt])
+  // Trigram GIN indexes for the global search / list keyword filter (FR-CC-03).
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "Account_name_trgm_idx")
+  @@index([industry(ops: raw("gin_trgm_ops"))], type: Gin, map: "Account_industry_trgm_idx")
+  @@index([website(ops: raw("gin_trgm_ops"))], type: Gin, map: "Account_website_trgm_idx")
+}
+
+model Contact {
+  id           String              @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  firstName    String
+  lastName     String
+  email        String?
+  phone        String?
+  jobTitle     String?
+  company      String?
+  address      String?
+  notes        String?
+  status       String              @default("active") // active | inactive
+  createdAt    DateTime            @default(now())
+  createdBy    String              @db.Uuid
+  updatedAt    DateTime            @updatedAt
+  updatedBy    String              @db.Uuid
+  deletedAt    DateTime?
+  accountLinks ContactAccountLink[]
+  interactions Interaction[]
+  opportunities Opportunity[]
+  tasks         Task[]
+
+  @@index([email])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([updatedAt])
+  // Trigram GIN indexes backing the ILIKE global-search / list keyword filters
+  // (FR-CC-03). The pg_trgm extension they need is enabled by the
+  // `init` migration, which Prisma does not model.
+  @@index([firstName(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_firstName_trgm_idx")
+  @@index([lastName(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_lastName_trgm_idx")
+  @@index([email(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_email_trgm_idx")
+  @@index([company(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_company_trgm_idx")
+  @@index([jobTitle(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_jobTitle_trgm_idx")
+}
+
+model ContactAccountLink {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  contactId String   @db.Uuid
+  accountId String   @db.Uuid
+  primary   Boolean  @default(false)
+  role      String
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, accountId])
+  @@index([accountId])
+}
+
+model Interaction {
+  id                String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  type              String // email | call | meeting | note | other
+  dateTime          DateTime
+  channel           String?
+  direction         String? // inbound | outbound (hidden for notes)
+  summary           String
+  contactId         String   @db.Uuid
+  accountId         String?  @db.Uuid
+  opportunityId     String?  @db.Uuid
+  taskId            String?  @db.Uuid
+  responsibleUserId String   @db.Uuid
+  createdAt         DateTime @default(now())
+  createdBy         String   @db.Uuid
+  updatedAt         DateTime @updatedAt
+  updatedBy         String   @db.Uuid
+  deletedAt         DateTime?
+  contact           Contact  @relation(fields: [contactId], references: [id])
+  account           Account? @relation(fields: [accountId], references: [id])
+  opportunity       Opportunity? @relation(fields: [opportunityId], references: [id])
+  task              Task?    @relation(fields: [taskId], references: [id])
+
+  @@index([contactId])
+  @@index([accountId])
+  @@index([opportunityId])
+  @@index([responsibleUserId])
+  @@index([dateTime])
+  @@index([deletedAt])
+  // Trigram GIN index for the global search over interaction summaries (FR-CC-03).
+  @@index([summary(ops: raw("gin_trgm_ops"))], type: Gin, map: "Interaction_summary_trgm_idx")
+}
+
+model Opportunity {
+  id                String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  name              String
+  contactId         String?          @db.Uuid
+  accountId         String           @db.Uuid
+  valueMinor        Int
+  currency          String           @default("USD")
+  expectedCloseDate DateTime         @db.Date
+  stageId           String           @db.Uuid
+  probability       Int
+  probabilityManual Boolean          @default(false)
+  ownerId           String           @db.Uuid
+  description       String?
+  lossReason        String?
+  createdAt         DateTime         @default(now())
+  createdBy         String           @db.Uuid
+  updatedAt         DateTime         @updatedAt
+  updatedBy         String           @db.Uuid
+  deletedAt         DateTime?
+  stage             Stage            @relation(fields: [stageId], references: [id])
+  account           Account          @relation(fields: [accountId], references: [id])
+  contact           Contact?         @relation(fields: [contactId], references: [id])
+  history           StageHistory[]
+  interactions      Interaction[]
+  tasks             Task[]
+
+  @@index([stageId])
+  @@index([accountId])
+  @@index([ownerId])
+  @@index([expectedCloseDate])
+  @@index([deletedAt])
+  @@index([updatedAt])
+  // Trigram GIN indexes for the global search over deal name / description (FR-CC-03).
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "Opportunity_name_trgm_idx")
+  @@index([description(ops: raw("gin_trgm_ops"))], type: Gin, map: "Opportunity_description_trgm_idx")
+}
+
+model StageHistory {
+  id            String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  opportunityId String      @db.Uuid
+  fromStageId   String?     @db.Uuid
+  toStageId     String      @db.Uuid
+  userId        String      @db.Uuid
+  timestamp     DateTime    @default(now())
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@index([opportunityId])
+  @@index([timestamp])
+}
+
+model Task {
+  id            String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  title         String
+  description   String?
+  dueDate       DateTime?        @db.Date
+  priority      String           @default("medium") // high | medium | low
+  status        String           @default("open") // open | completed
+  assigneeId    String           @db.Uuid
+  contactId     String?          @db.Uuid
+  accountId     String?          @db.Uuid
+  opportunityId String?          @db.Uuid
+  completedAt   DateTime?
+  completedBy   String?          @db.Uuid
+  deletedAt     DateTime?
+  createdAt     DateTime         @default(now())
+  createdBy     String           @db.Uuid
+  updatedAt     DateTime         @updatedAt
+  updatedBy     String           @db.Uuid
+  contact       Contact?         @relation(fields: [contactId], references: [id])
+  account       Account?         @relation(fields: [accountId], references: [id])
+  opportunity   Opportunity?     @relation(fields: [opportunityId], references: [id])
+  completions   TaskCompletion[]
+  interactions  Interaction[]
+
+  @@index([assigneeId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([contactId])
+  @@index([accountId])
+  @@index([opportunityId])
+  @@index([deletedAt])
+  // Trigram GIN indexes for the global search over task title / description (FR-CC-03).
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "Task_title_trgm_idx")
+  @@index([description(ops: raw("gin_trgm_ops"))], type: Gin, map: "Task_description_trgm_idx")
+}
+
+// Append-only record of every task completion so completion history survives reopen
+// (FR-TA-03 "completion history is retained"). Task.completedAt/completedBy reflect the
+// most recent completion.
+model TaskCompletion {
+  id          String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  taskId      String   @db.Uuid
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  completedAt DateTime @default(now())
+  completedBy String   @db.Uuid
+
+  @@index([taskId])
+}
+
+model ImportMappingTemplate {
+  id          String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  entity      String // contact | account
+  name        String
+  mapping     Json // csvHeader -> canonical field key
+  ownerColumn String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([entity, name])
+}

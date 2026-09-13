@@ -1,0 +1,92 @@
+# Dependabot: automated dependency updates.
+#
+#   npm (root, frontend, backend) — pnpm workspace packages are updated
+#     per-directory so lockfile churn stays scoped to the touched package.
+#   github-actions — keeps the CI action versions current.
+#
+# All updates are grouped per package to keep PR count manageable, and the
+# shared pnpm catalog (pnpm-workspace.yaml) stays the single source of truth
+# for versions referenced via "catalog:".
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      root-dev-dependencies:
+        dependency-type: development
+    ignore:
+      # Node/pnpm engines are pinned deliberately; do not auto-bump.
+      - dependency-name: 'packageManager'
+
+  - package-ecosystem: npm
+    directory: '/packages/frontend'
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      frontend-dependencies:
+        dependency-type: production
+      frontend-dev-dependencies:
+        dependency-type: development
+
+  - package-ecosystem: npm
+    directory: '/packages/backend'
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      backend-dependencies:
+        dependency-type: production
+      backend-dev-dependencies:
+        dependency-type: development
+
+  - package-ecosystem: docker
+    directory: '/packages/backend'
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      backend-base-image:
+        patterns:
+          - '*'
+
+  - package-ecosystem: docker
+    directory: '/packages/frontend'
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      frontend-base-image:
+        patterns:
+          - '*'
+
+  - package-ecosystem: docker-compose
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      compose-images:
+        patterns:
+          - '*'
+
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - '*'

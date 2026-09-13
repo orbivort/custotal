@@ -1,0 +1,82 @@
+# Security scanning pipeline.
+#
+#   codeql            — GitHub's semantic code analysis (JS/TS), runs on every
+#                       push to main, every PR, and weekly. Results appear in
+#                       the Security > Code scanning alerts tab.
+#   dependency-review — fails PRs that introduce vulnerable or disallowed
+#                       (GPL-family) licenses on changed dependencies.
+#   audit             — weekly full-lockfile audit; scheduled so drift on main
+#                       (e.g. a newly disclosed CVE) is caught even without PRs.
+#
+# Permissions follow least privilege: only CodeQL gets security-events: write.
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Every Monday 03:00 UTC.
+    - cron: '0 3 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  codeql:
+    name: CodeQL analysis (javascript-typescript)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+      # Install dependencies so CodeQL can resolve imports and type info,
+      # which substantially improves JS/TS analysis fidelity.
+      - run: pnpm install --frozen-lockfile
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          # Security-extended query suite for higher-severity coverage.
+          queries: security-extended
+      - uses: github/codeql-action/autobuild@v4
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: '/language:javascript-typescript'
+
+  dependency-review:
+    name: Dependency review (vulnerable / disallowed licenses)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          # Block reciprocal licenses from sneaking into the dependency tree.
+          deny-licenses: GPL-1.0-or-later, GPL-2.0-or-later, GPL-3.0-or-later, AGPL-1.0-or-later, AGPL-3.0-or-later
+
+  audit:
+    name: Dependency audit (pnpm audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # PRs are already covered by dependency-review; the scheduled run catches
+    # newly disclosed CVEs on main between releases.
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Audit dependencies
+        run: pnpm audit --audit-level=high

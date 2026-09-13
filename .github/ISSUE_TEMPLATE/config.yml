@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/orbivort/custotal/security/advisories/new
+    about: Report security issues privately — never open a public issue for them.
+  - name: Questions and ideas
+    url: https://github.com/orbivort/custotal/discussions
+    about: Ask usage questions or discuss ideas with the community.
+  - name: Documentation
+    url: https://github.com/orbivort/custotal/blob/main/docs/self-hosting.md
+    about: Setup, configuration, and deployment guidance.

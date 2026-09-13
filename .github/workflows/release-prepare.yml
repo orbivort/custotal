@@ -1,0 +1,608 @@
+# Release automation — step 1 of 2: draft a release pull request.
+#
+# With release-finalize.yml this turns the release process into:
+#   dispatch -> review & edit the PR -> merge -> tag + publish (automatic).
+#
+# Given a version, this workflow:
+#   1. validates that it is SemVer and refuses to reuse an existing tag,
+#   2. rewrites `version` in every workspace package.json,
+#   3. drafts a Keep a Changelog entry from the Conventional Commits merged
+#      since the previous release tag,
+#   4. opens (or, on a re-run, refreshes) a `release/vX.Y.Z` pull request
+#      carrying both, so maintainers review and edit the changelog through the
+#      normal GitHub review flow.
+#
+# Nothing is tagged or published here: merging the pull request is the
+# approval, and release-finalize.yml performs the release.
+#
+# Idempotency: re-dispatching with the same version force-updates the existing
+# branch and pull request instead of failing, so a bad draft — or a version
+# that was never merged — is fixed by dispatching again. The trade-off is that
+# a re-run rebuilds the branch from `base`, so any edit made directly on the
+# release branch is discarded; edit only through the pull request, or dispatch
+# again and re-apply. Once the version has been merged (and therefore tagged),
+# the run stops at step 1 with an explicit error.
+#
+# The `gh` CLI is preinstalled on GitHub-hosted runners, so no third-party
+# release action is required.
+name: 'Release: prepare'
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Next release version — SemVer, with or without a leading "v" (e.g. 1.1.0).'
+        required: true
+        type: string
+      base:
+        description: 'Branch to cut the release from.'
+        required: false
+        default: main
+        type: string
+
+# Serialize dispatches: two runs must not race on the same release branch.
+concurrency:
+  group: release-prepare
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Draft release PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # push the release branch
+      pull-requests: write # open / refresh the release pull request
+      actions: write # dispatch CI against the release branch (see below)
+    steps:
+      - name: Validate the requested version
+        id: version
+        env:
+          REQUESTED: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          # Accept `1.1.0` and `v1.1.0` alike, then normalise to both forms so
+          # no later step has to think about it again.
+          version="${REQUESTED#v}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::'${REQUESTED}' is not a SemVer version (expected e.g. 1.1.0 or 1.2.0-rc.1)."
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Check out ${{ inputs.base }}
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.base }}
+          # Full history and tags: the changelog draft diffs against the
+          # previous release tag.
+          fetch-depth: 0
+          # Keep the token out of .git/config. The steps that need to push
+          # borrow credentials from `gh auth setup-git` instead.
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v5 # reads packageManager from package.json
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      # Prettier runs last as a safety net: the release PR must satisfy CI's
+      # `format:check`, and the changelog is assembled by a script.
+      - run: pnpm install --frozen-lockfile
+
+      - name: Configure git and gh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # The credential helper reads GH_TOKEN from the environment at push
+          # time, so the token never lands in the repository config.
+          gh auth setup-git
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Refuse to release an existing tag
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # `ls-remote` is cheaper than an API round-trip and needs no extra
+          # scope on the token.
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "::error::Tag ${TAG} already exists — that version has been released."
+            echo "Dispatch again with the next version, or republish the tag with the Release workflow."
+            exit 1
+          fi
+
+      - name: Find the previous release tag
+        id: previous
+        run: |
+          set -euo pipefail
+          # The nearest *reachable* SemVer tag, so an unrelated or out-of-band
+          # tag cannot silently widen the changelog range.
+          previous="$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null || true)"
+          if [[ -z "${previous}" ]]; then
+            # First release: diff against the root commit.
+            previous="$(git rev-list --max-parents=0 HEAD | tail -n 1)"
+            echo "No previous release tag; diffing against the root commit."
+          fi
+          echo "tag=${previous}" >> "$GITHUB_OUTPUT"
+          echo "Changelog range: ${previous}..HEAD"
+
+      - name: Collect the commits in this release
+        env:
+          PREVIOUS_TAG: ${{ steps.previous.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # Unit/record separated: subjects and bodies may contain any other
+          # character, including newlines.
+          git log "${PREVIOUS_TAG}..HEAD" --no-merges \
+            --pretty=format:'%H%x1f%s%x1f%b%x1e' > "$RUNNER_TEMP/commits.txt"
+          echo "Collected $(git log "${PREVIOUS_TAG}..HEAD" --no-merges --oneline | wc -l) commits."
+
+      - name: Bump the version in every workspace manifest
+        id: bump
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/bump-version.mjs" <<'NODE'
+          import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+
+          // Every version in the workspace. The root manifest drives the
+          // repository, the backend manifest is read at runtime by the API's
+          // `/api/health` payload, and the frontend manifest is stamped into
+          // the built bundle.
+          const MANIFESTS = [
+            'package.json',
+            'packages/backend/package.json',
+            'packages/frontend/package.json',
+          ];
+
+          // Anchor to each file's first top-level `"version"` so the dependency
+          // blocks below it are never touched, and rewrite nothing else — that
+          // keeps the package.json diff to a single line each.
+          const PATTERN = /^(\s*"version"\s*:\s*")([^"]+)(")/m;
+
+          const version = process.env.VERSION;
+          const sources = new Map();
+          const current = new Set();
+          let failed = false;
+
+          for (const manifest of MANIFESTS) {
+            const source = readFileSync(manifest, 'utf8');
+            const match = PATTERN.exec(source);
+            if (!match) {
+              console.error(`::error file=${manifest}::no top-level "version" field`);
+              failed = true;
+              continue;
+            }
+            sources.set(manifest, { source, from: match[2] });
+            current.add(match[2]);
+          }
+
+          if (failed) throw new Error('a manifest has no version to bump');
+
+          // The three manifests must agree before the bump: a mismatch means an
+          // earlier release was applied to only some of them, and tagging now
+          // would ship inconsistent metadata.
+          if (current.size !== 1) {
+            throw new Error(
+              `manifests disagree on the current version: ${[...current].join(', ')}`,
+            );
+          }
+
+          const [from] = current;
+          for (const [manifest, { source, from: before }] of sources) {
+            writeFileSync(manifest, source.replace(PATTERN, `$1${version}$3`));
+            console.log(`${manifest}: ${before} -> ${version}`);
+          }
+
+          // Consumed by the changelog draft and the pull request body.
+          appendFileSync(process.env.GITHUB_OUTPUT, `previous=${from}\n`);
+          NODE
+          node "$RUNNER_TEMP/bump-version.mjs"
+
+      - name: Draft the changelog entry
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          PREVIOUS_VERSION: ${{ steps.bump.outputs.previous }}
+          PREVIOUS_TAG: ${{ steps.previous.outputs.tag }}
+          BASE: ${{ inputs.base }}
+          COMMITS_FILE: ${{ runner.temp }}/commits.txt
+          PR_BODY_FILE: ${{ runner.temp }}/release-pr-body.md
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/draft-changelog.mjs" <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+
+          const VERSION = process.env.VERSION;
+          const TAG = `v${VERSION}`;
+          const CHANGELOG = 'CHANGELOG.md';
+          const PREVIOUS_TAG = process.env.PREVIOUS_TAG;
+          const PREVIOUS_VERSION = process.env.PREVIOUS_VERSION;
+
+          // Keep a Changelog categories, in the order new sections are
+          // appended. `Added` first, to match the existing CHANGELOG.md.
+          const SECTION_ORDER = [
+            'Added',
+            'Changed',
+            'Deprecated',
+            'Removed',
+            'Fixed',
+            'Security',
+            'Documentation',
+            'Maintenance',
+          ];
+
+          // Conventional Commits type -> category. CONTRIBUTING.md mandates
+          // this vocabulary, so nearly every commit maps cleanly.
+          const TYPE_TO_SECTION = new Map([
+            ['feat', 'Added'],
+            ['fix', 'Fixed'],
+            ['perf', 'Changed'],
+            ['refactor', 'Changed'],
+            ['revert', 'Removed'],
+            ['docs', 'Documentation'],
+            ['build', 'Maintenance'],
+            ['ci', 'Maintenance'],
+            ['chore', 'Maintenance'],
+            ['style', 'Maintenance'],
+            ['test', 'Maintenance'],
+          ]);
+
+          const CONVENTIONAL =
+            /^(?<type>[a-z]+)(?:\((?<scope>[^)]+)\))?(?<breaking>!)?:\s*(?<summary>.+)$/;
+
+          // Release bookkeeping, not user-visible change: without this filter
+          // the `chore(release): v1.1.0` merge commit would reappear in the
+          // next draft.
+          const BOOKKEEPING = /^(chore\(release\)|release v?\d)/i;
+
+          const oneLine = (text) => text.replace(/\s+/g, ' ').trim();
+
+          /** Groups this release's commits into changelog categories. */
+          function generatedSections() {
+            const raw = readFileSync(process.env.COMMITS_FILE, 'utf8');
+            const sections = new Map();
+            const seen = new Set();
+
+            for (const record of raw.split('\u001e')) {
+              const [hash = '', subject = '', body = ''] = record.split('\u001f');
+              const summary = oneLine(subject);
+              if (hash.trim() === '' || summary === '' || BOOKKEEPING.test(summary)) continue;
+
+              const match = CONVENTIONAL.exec(summary);
+              const type = match?.groups?.type ?? '';
+              const breaking =
+                match?.groups?.breaking === '!' || /^breaking[ -]change:/im.test(body);
+              const title = TYPE_TO_SECTION.get(type) ?? 'Changed';
+
+              // Subjects that are not conventional commits are kept verbatim
+              // rather than dropped, so nothing disappears silently.
+              const entry = `- ${breaking ? '**BREAKING** ' : ''}${summary}`;
+              if (seen.has(entry)) continue;
+              seen.add(entry);
+
+              if (!sections.has(title)) sections.set(title, []);
+              sections.get(title).push(entry);
+            }
+
+            return sections;
+          }
+
+          /**
+           * Splits the staged (hand-written) body on its `###` headings,
+           * keeping every section verbatim so hand-wrapped prose and nested
+           * lists survive the move. An empty body — the state when the file
+           * carries no `## [Unreleased]` section — yields no sections.
+           */
+          function splitUnreleased(body) {
+            const headings = [...body.matchAll(/^###\s+(.+?)\s*$/gm)];
+            const preamble = (headings.length > 0 ? body.slice(0, headings[0].index) : body).trim();
+            const sections = [];
+
+            headings.forEach((heading, index) => {
+              const start = heading.index + heading[0].length;
+              const end = index + 1 < headings.length ? headings[index + 1].index : body.length;
+              const raw = body.slice(start, end).trim();
+              if (raw !== '') sections.push({ title: heading[1].trim(), raw });
+            });
+
+            return { preamble, sections };
+          }
+
+          /** True when the entry, or the pull request it references, is listed. */
+          function isDuplicate(text, entry) {
+            const pullRequest = /\(#(\d+)\)/.exec(entry)?.[1];
+            if (pullRequest !== undefined && text.includes(`#${pullRequest}`)) return true;
+
+            const normalised = oneLine(entry).replace(/^[-*]\s+/, '').toLowerCase();
+            return text
+              .split('\n')
+              .some((line) => oneLine(line).replace(/^[-*]\s+/, '').toLowerCase() === normalised);
+          }
+
+          const source = readFileSync(CHANGELOG, 'utf8');
+
+          // An `## [Unreleased]` section is optional. When present its body is a
+          // staging area for hand-written notes, drained into the new entry below
+          // and left empty for the next release; when absent the new entry is
+          // inserted directly above the newest release. Both states are
+          // supported, so the file never has to carry a section it does not want.
+          const unreleased = /^## \[Unreleased\][^\n]*$/m.exec(source);
+
+          /** Index at which the released history begins: the first `## ` at or after `from`. */
+          const historyStart = (text, from) => {
+            const offset = /^##\s/m.exec(text.slice(from))?.index;
+            return offset === undefined ? text.length : from + offset;
+          };
+
+          // Three pieces get rewritten below: everything above the release list
+          // (`header`, plus the staging heading when the file has one), the
+          // hand-written body staged for this release (`curatedBody`), and the
+          // released sections plus link definitions (`rest`).
+          let header;
+          let heading;
+          let curatedBody;
+          let rest;
+
+          if (unreleased === null) {
+            const history = historyStart(source, 0);
+            header = source.slice(0, history);
+            heading = '';
+            curatedBody = '';
+            rest = source.slice(history);
+          } else {
+            const bodyStart = unreleased.index + unreleased[0].length;
+            const history = historyStart(source, bodyStart);
+            header = source.slice(0, unreleased.index);
+            heading = `${unreleased[0]}\n\n`;
+            curatedBody = source.slice(bodyStart, history);
+            rest = source.slice(history);
+          }
+
+          const { preamble, sections: curated } = splitUnreleased(curatedBody);
+          const curatedText = curated.map((section) => section.raw).join('\n');
+
+          // Maintainer-written content wins; generated entries are appended
+          // only when they add something new, matched by pull request number or
+          // identical text.
+          const additions = new Map();
+          for (const [title, entries] of generatedSections()) {
+            const fresh = entries.filter((entry) => !isDuplicate(curatedText, entry));
+            if (fresh.length > 0) additions.set(title, fresh);
+          }
+
+          for (const [title, entries] of additions) {
+            const existing = curated.find((section) => section.title === title);
+            if (existing) existing.raw = `${existing.raw}\n${entries.join('\n')}`;
+          }
+
+          const rank = (title) => {
+            const index = SECTION_ORDER.indexOf(title);
+            return index === -1 ? SECTION_ORDER.length : index;
+          };
+
+          const parts = [
+            ...curated,
+            ...[...additions.keys()]
+              .filter((title) => !curated.some((section) => section.title === title))
+              .sort((a, b) => rank(a) - rank(b))
+              .map((title) => ({ title, raw: additions.get(title).join('\n') })),
+          ];
+
+          const sectionBody =
+            parts.length > 0
+              ? parts.map(({ title, raw }) => `### ${title}\n\n${raw}\n`).join('\n')
+              : '<!-- TODO(release): describe this release; no conventional commits were found. -->\n';
+
+          const date = new Date().toISOString().slice(0, 10);
+          const section = [
+            `## [${VERSION}] - ${date}`,
+            '',
+            ...(preamble === '' ? [] : [preamble, '']),
+            sectionBody,
+            '',
+          ].join('\n');
+
+          // Keep the link definitions in step with the new tag. The base URL is
+          // taken from an existing definition — the `[Unreleased]` compare link
+          // when the file has one, otherwise the newest released version — so a
+          // fork's changelog keeps pointing at the fork.
+          const repoBase =
+            /^\[Unreleased\]:\s*(\S+?)\/compare\//m.exec(source)?.[1] ??
+            /^\[[^\]]+\]:\s*(\S+?)\/releases\/tag\//m.exec(source)?.[1] ??
+            `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}`;
+          const links = [
+            // Only maintained while the file carries a staging section.
+            ...(unreleased === null ? [] : [`[Unreleased]: ${repoBase}/compare/${TAG}...HEAD`]),
+            `[${VERSION}]: ${repoBase}/releases/tag/${TAG}`,
+          ].join('\n');
+          const unreleasedLink = /^\[Unreleased\]:[^\n]*$/m;
+
+          const linkBlock = unreleasedLink.test(rest)
+            ? rest.replace(unreleasedLink, links)
+            : `${rest.trimEnd()}\n\n${links}\n`;
+
+          writeFileSync(CHANGELOG, `${header}${heading}${section}${linkBlock}`);
+
+          console.log(
+            `Drafted ${VERSION}: ${parts.length} section(s), ${new Set([...additions.values()].flat()).size} generated entr(ies).`,
+          );
+
+          writeFileSync(process.env.PR_BODY_FILE, `## Release ${TAG}
+          Automated release pull request for \`${TAG}\`, drafted from the commits merged since
+          ${PREVIOUS_TAG}. **Nothing is tagged or published until this pull request is merged.**
+
+          ### What this changes
+
+          - \`version\` \`${PREVIOUS_VERSION}\` -> \`${VERSION}\` in \`package.json\`,
+            \`packages/backend/package.json\` and \`packages/frontend/package.json\`. The backend
+            manifest is read at runtime, so \`GET /api/health\` reports the new version.
+          - A \`## [${VERSION}] - ${date}\` section in \`CHANGELOG.md\`, placed above the previous
+            release and merged with any notes already staged for this one.
+
+          ### Review checklist
+
+          - [ ] The changelog entry is accurate and readable. Edit \`CHANGELOG.md\` directly on this
+                branch before merging.
+          - [ ] The version follows SemVer for the changes included.
+          - [ ] Required status checks are green.
+
+          ### What happens on merge
+
+          The merge commit is tagged \`${TAG}\` and the
+          [Release](${repoBase}/actions/workflows/release.yml) pipeline runs: it creates the GitHub
+          Release with generated notes, attaches the frontend bundle, and publishes the
+          \`custotal-backend\`, \`custotal-backend:${VERSION}-tools\` and \`custotal-frontend\`
+          container images to GHCR.
+
+          Re-dispatching **Release: prepare** rebuilds this branch from \`${process.env.BASE}\` and
+          overwrites edits made here, so prefer to fix the branch in place.
+
+          <details>
+          <summary>Generated changelog draft</summary>
+
+          ${section}
+          </details>
+          `);
+          NODE
+          node "$RUNNER_TEMP/draft-changelog.mjs"
+
+      - name: Format the generated files
+        run: |
+          set -euo pipefail
+          # Guarantees the release PR satisfies the quality gate's
+          # `format:check` instead of relying on the generator being
+          # prettier-perfect.
+          pnpm exec prettier --write \
+            CHANGELOG.md \
+            package.json \
+            packages/backend/package.json \
+            packages/frontend/package.json
+
+      - name: Push the release branch
+        id: branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          branch="release/${TAG}"
+          echo "name=${branch}" >> "$GITHUB_OUTPUT"
+
+          git add -- CHANGELOG.md package.json packages/backend/package.json packages/frontend/package.json
+
+          if git diff --cached --quiet; then
+            # Nothing to change. That is benign only when the release branch
+            # already exists (a re-run); otherwise the version is already on
+            # the base branch without a tag, which must not pass silently —
+            # pushing there would move the branch backwards.
+            if git ls-remote --exit-code --heads origin "refs/heads/${branch}" >/dev/null 2>&1; then
+              echo "::notice::Nothing new for ${branch}; refreshing the pull request only."
+              exit 0
+            fi
+            echo "::error::${TAG} is already on ${{ inputs.base }} but has no tag and no release branch."
+            echo "Republish it with the Release workflow (workflow_dispatch, tag=${TAG}), or dispatch again with the next version."
+            exit 1
+          fi
+
+          # `-s` adds the Developer Certificate of Origin trailer that
+          # CONTRIBUTING.md requires of every commit.
+          git commit -s --message "chore(release): ${TAG}"
+
+          # Refresh the remote-tracking ref first so the lease below is
+          # meaningful; a re-run is expected to move this bot-owned branch.
+          git fetch --no-tags origin "+refs/heads/${branch}:refs/remotes/origin/${branch}" 2>/dev/null || true
+
+          if git show-ref --verify --quiet "refs/remotes/origin/${branch}"; then
+            git push --force-with-lease origin "HEAD:refs/heads/${branch}"
+          else
+            git push --set-upstream origin "HEAD:refs/heads/${branch}"
+          fi
+
+      - name: Open the release pull request
+        id: pull_request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          BASE: ${{ inputs.base }}
+          BRANCH: ${{ steps.branch.outputs.name }}
+          PR_BODY_FILE: ${{ runner.temp }}/release-pr-body.md
+        run: |
+          set -euo pipefail
+          # Prefer the open pull request; failing that, reuse one that was
+          # closed unmerged, so a re-dispatch after an abandoned attempt
+          # refreshes the branch instead of failing on a duplicate.
+          number="$(gh pr list --head "${BRANCH}" --state open --limit 1 --json number --jq '.[0].number // empty')"
+          state="OPEN"
+          if [[ -z "${number}" ]]; then
+            number="$(gh pr list --head "${BRANCH}" --state closed --limit 1 --json number --jq '.[0].number // empty')"
+            if [[ -n "${number}" ]]; then
+              state="CLOSED"
+            fi
+          fi
+
+          if [[ -z "${number}" ]]; then
+            url="$(gh pr create \
+              --base "${BASE}" \
+              --head "${BRANCH}" \
+              --title "chore(release): ${TAG}" \
+              --body-file "${PR_BODY_FILE}")"
+            echo "::notice::Opened a new release pull request."
+          else
+            if [[ "${state}" == "CLOSED" ]]; then
+              gh pr reopen "${number}" \
+                --comment "Re-dispatch of **Release: prepare** for ${TAG}; the branch has been regenerated."
+            fi
+            # Keep the review thread, but bring the title and body in line with
+            # the fresh draft.
+            gh pr edit "${number}" \
+              --title "chore(release): ${TAG}" \
+              --body-file "${PR_BODY_FILE}"
+            url="$(gh pr view "${number}" --json url --jq .url)"
+            echo "::notice::Refreshed pull request #${number}."
+          fi
+
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
+          echo "Pull request: ${url}"
+
+      - name: Start CI on the release branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ steps.branch.outputs.name }}
+        run: |
+          set -euo pipefail
+          # A pull request opened with GITHUB_TOKEN does not emit a
+          # `pull_request` event — the same recursion guard that makes
+          # release-finalize.yml dispatch the Release workflow explicitly — so
+          # ci.yml would never run on this pull request and its status checks
+          # would stay "Expected". Dispatch the pipeline against the branch
+          # instead: the check runs land on the branch head, which is the commit
+          # branch protection evaluates.
+          gh workflow run ci.yml --ref "${BRANCH}"
+          echo "::notice::Dispatched CI for ${BRANCH}; watch it with 'gh run list --branch ${BRANCH}'."
+
+      - name: Summarize
+        if: always()
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          PREVIOUS_TAG: ${{ steps.previous.outputs.tag }}
+          PR_URL: ${{ steps.pull_request.outputs.url }}
+        run: |
+          {
+            echo "## Release ${TAG}"
+            echo
+            echo "- Changelog range: \`${PREVIOUS_TAG}..${{ inputs.base }}\`"
+            echo "- Pull request: ${PR_URL:-not created}"
+            echo "- CI: dispatched against \`release/${TAG}\`; the pull request's checks report there."
+            echo
+            echo "Merging the pull request runs **Release: finalize**, which tags \`${TAG}\` and"
+            echo "dispatches the Release workflow (GitHub Release + container images)."
+          } >> "$GITHUB_STEP_SUMMARY"

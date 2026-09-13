@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    // Node 24 runs .ts sources directly (type stripping), so relative ESM imports
+    // use real ".ts" extensions rather than the ".js" convention.
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "src",
+    "prisma",
+    "scripts",
+    "test",
+    "prisma.config.ts",
+    "vitest.config.ts",
+    "vitest.integration.config.ts",
+    "vitest.e2e.config.ts"
+  ]
+}

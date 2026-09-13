@@ -1,0 +1,54 @@
+{
+  "name": "@custotal/backend",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Custotal backend — Express 5 + Prisma 7 + PostgreSQL REST API.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/orbivort/custotal.git",
+    "directory": "packages/backend"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env --watch src/index.ts",
+    "start": "node --env-file-if-exists=.env src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:create-admin": "node --env-file-if-exists=.env scripts/create-admin.ts",
+    "backup": "node scripts/backup.ts",
+    "purge": "node scripts/purge.ts",
+    "maintenance": "node scripts/backup.ts && node scripts/purge.ts",
+    "test": "pnpm run test:unit && pnpm run test:integration",
+    "test:unit": "vitest run --config vitest.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
+    "test:coverage": "pnpm --workspace-root exec vitest run --coverage --project backend-unit --project backend-integration --project backend-e2e"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.9.1",
+    "bcryptjs": "^3.0.2",
+    "cookie-parser": "^1.4.7",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.0.1",
+    "nodemailer": "^10.0.3",
+    "pino": "^10.3.1",
+    "pino-http": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cookie-parser": "^1.4.8",
+    "@types/express": "^5.0.6",
+    "@types/node": "catalog:",
+    "@types/supertest": "^6.0.2",
+    "prisma": "^7.9.1",
+    "supertest": "^7.0.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

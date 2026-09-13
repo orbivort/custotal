@@ -1,0 +1,31 @@
+# Local development override for the Custotal stack.
+#
+#   pnpm docker:dev
+#
+# i.e. docker compose --env-file .env.docker -f docker-compose.yml -f docker-compose.dev.yml up --build
+
+name: custotal-dev
+
+# It runs the same production images with developer-friendly defaults: the
+# database and the API are published on the host, the session cookie no longer
+# requires HTTPS, and the in-process purge timer is disabled so it cannot fire
+# during a debugging session.
+#
+# This stack is a production-parity way to exercise the containers themselves.
+# For live-reload development (hot module replacement, watch mode) use
+# `pnpm dev`, which runs the dev servers natively.
+services:
+  db:
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+
+  backend:
+    environment:
+      NODE_ENV: development
+      INSTANCE_ENVIRONMENT: development
+      COOKIE_SECURE: 'false'
+      MAINTENANCE_PURGE_ENABLED: 'false'
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:8080}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+    ports:
+      - '${CUSTOTAL_API_PORT:-4000}:4000'

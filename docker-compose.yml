@@ -1,0 +1,148 @@
+# Custotal — self-hosted Docker Compose stack.
+#
+# Runs PostgreSQL 18, the API, and an nginx-served SPA on one origin. Pending
+# database migrations are applied by a one-shot `migrate` service before the API
+# starts (there is no database seed; provision the first administrator
+# afterwards — see docs/self-hosting.md).
+#
+#   cp .env.docker.example .env.docker    # set POSTGRES_PASSWORD at minimum
+#   pnpm docker:up                        # = docker compose --env-file .env.docker up -d --build
+#
+# `.env.docker` is the single Docker environment file: it feeds both variable
+# substitution here and the API container's environment (see the `backend`
+# service). The root `package.json` `docker:*` scripts pass `--env-file
+# .env.docker` for you; a raw `docker compose` call still needs the flag because
+# Compose only auto-loads a file named `.env`.
+#
+# For a production deployment set COOKIE_SECURE=true, point APP_PUBLIC_URL and
+# CORS_ORIGINS at your public origin, and terminate TLS in front of `web`.
+#
+# Images are built locally from this repository by default. To run the images
+# the release pipeline publishes to GHCR, set CUSTOTAL_TAG to a released version
+# and CUSTOTAL_REGISTRY to the owner-prefixed registry path (e.g.
+# `ghcr.io/orbivort/`); `pnpm docker:pull` then fetches them instead of building.
+name: custotal
+
+# Shared API configuration, injected ahead of the single `.env.docker` file so a
+# deployment cannot shoot itself in the foot: `environment` overrides `env_file`.
+# The deployment file still supplies the substituted values on the right-hand
+# side (${…}) and the remaining application settings (SMTP, tenant locale, backup
+# retention, …). The development file `packages/backend/.env` is deliberately
+# never read — see the `backend` service.
+x-backend-env: &backend-env
+  NODE_ENV: production
+  PORT: '4000'
+  DATABASE_URL: postgresql://${POSTGRES_USER:-custotal}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.docker}@db:5432/${POSTGRES_DB:-custotal}
+  # Behind the bundled nginx proxy: resolve req.ip to the real client so rate
+  # limiting keys per client instead of per proxy address.
+  TRUST_PROXY: '1'
+  COOKIE_SECURE: '${COOKIE_SECURE:-false}'
+  APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:8080}
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+  INSTANCE_ENVIRONMENT: production
+  INSTANCE_HOSTNAME: ${INSTANCE_HOSTNAME:-localhost}
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-custotal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.docker}
+      POSTGRES_DB: ${POSTGRES_DB:-custotal}
+    volumes:
+      # PostgreSQL 18 stores its cluster in a major-version subdirectory, so the
+      # volume belongs on the parent path (mounting the legacy data directory
+      # makes the entrypoint refuse to start).
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # One-shot migration job. It builds the Dockerfile's `tools` target — the only
+  # one that carries the Prisma CLI and the pre-fetched schema engine — so this
+  # runs offline as the non-root user while the API image stays production-only.
+  # The tag is a variant of the backend image, so a released tag
+  # (`CUSTOTAL_TAG=v1.0.0`) pulls the matching `:v1.0.0-tools` build.
+  migrate:
+    image: ${CUSTOTAL_REGISTRY:-}custotal-backend:${CUSTOTAL_TAG:-local}-tools
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
+      target: tools
+      # Registry used to download npm/pnpm packages while building. Override it
+      # in `.env.docker` (NPM_REGISTRY) to build through a mirror; unset falls back to
+      # the official registry. See docs/self-hosting.md.
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org/}
+    # Migrations need nothing beyond DATABASE_URL from the shared anchor, so
+    # `.env.docker` is intentionally not loaded into this one-shot job.
+    environment: *backend-env
+    command: ['node', 'node_modules/prisma/build/index.js', 'migrate', 'deploy']
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: 'no'
+
+  backend:
+    image: ${CUSTOTAL_REGISTRY:-}custotal-backend:${CUSTOTAL_TAG:-local}
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
+      target: runtime
+      # Registry used to download npm/pnpm packages while building. Override it
+      # in `.env.docker` (NPM_REGISTRY) to build through a mirror; unset falls back to
+      # the official registry. See docs/self-hosting.md.
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org/}
+    restart: unless-stopped
+    # The single Docker environment file — the same one Compose substitutes from
+    # (`--env-file .env.docker`): SMTP, tenant locale, backup retention, purge
+    # schedule, … Keys it omits keep their built-in default (src/config.ts), and
+    # the `environment` block below still wins for the keys Compose owns. The
+    # development file `packages/backend/.env` is never read: it targets
+    # `pnpm dev` (localhost database, NODE_ENV=development, development origins
+    # and identity) and would blend a development environment and its credentials
+    # into a deployment. Start from `.env.docker.example`.
+    # The Compose-only keys in that file (POSTGRES_*, CUSTOTAL_TAG, ports) also
+    # reach this container; the application ignores them.
+    env_file:
+      - path: .env.docker
+        required: false
+    environment:
+      <<: *backend-env
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - backups:/app/packages/backend/backups
+    # The API drains in-flight requests on SIGTERM within a 10 s window
+    # (src/index.ts); give Docker room to let that finish.
+    stop_grace_period: 30s
+
+  web:
+    image: ${CUSTOTAL_REGISTRY:-}custotal-frontend:${CUSTOTAL_TAG:-local}
+    build:
+      context: .
+      dockerfile: packages/frontend/Dockerfile
+      target: runtime
+      # Registry used to download npm/pnpm packages while building. Override it
+      # in `.env.docker` (NPM_REGISTRY) to build through a mirror; unset falls back to
+      # the official registry. See docs/self-hosting.md.
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org/}
+    restart: unless-stopped
+    ports:
+      - '${CUSTOTAL_HTTP_PORT:-8080}:8080'
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  db-data:
+  backups:

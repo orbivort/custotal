@@ -1,0 +1,36 @@
+{
+  "extends": ["stylelint-config-standard"],
+  "rules": {
+    "at-rule-no-unknown": [
+      true,
+      {
+        "ignoreAtRules": [
+          "theme",
+          "utility",
+          "apply",
+          "layer",
+          "custom-variant",
+          "variant",
+          "source"
+        ]
+      }
+    ],
+    "function-no-unknown": [true, { "ignoreFunctions": ["theme"] }],
+    "value-keyword-case": [
+      "lower",
+      {
+        "ignoreFunctions": ["theme"],
+        "ignoreKeywords": ["optimizeLegibility", "Menlo"],
+        "ignoreProperties": ["font-family"]
+      }
+    ],
+    "import-notation": null,
+    "custom-property-empty-line-before": null,
+    "rule-empty-line-before": null,
+    "no-descending-specificity": null,
+    "selector-class-pattern": null,
+    "custom-property-pattern": null,
+    "keyframes-name-pattern": null,
+    "no-empty-source": null
+  }
+}

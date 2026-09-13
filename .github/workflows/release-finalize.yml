@@ -1,0 +1,214 @@
+# Release automation — step 2 of 2: tag and publish a merged release.
+#
+# Triggered when a `release/vX.Y.Z` pull request is merged into `main` — the
+# pull request opened by release-prepare.yml once maintainers reviewed and
+# edited the changelog. Merging is the approval; this workflow performs the
+# release:
+#
+#   1. verifies the merged tree really is that version (manifests + changelog),
+#   2. creates and pushes the annotated `vX.Y.Z` tag on the merge commit,
+#   3. dispatches the existing Release workflow, which creates the GitHub
+#      Release and publishes the container images to GHCR,
+#   4. waits for it and reports the outcome in the run summary.
+#
+# Idempotency: a run whose tag already exists is a no-op — the tag is verified
+# to still point at the merge commit and the publish pipeline is driven again,
+# so a failed image build (or any partial run) is fixed by re-running this job.
+#
+# `pull_request` is used deliberately rather than `pull_request_target`: release
+# pull requests always come from a branch in this repository, so the job gets a
+# write token without ever executing anything from a fork.
+name: 'Release: finalize'
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+# One release at a time; never cancel a run that is partway through publishing.
+concurrency:
+  group: release-finalize
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Tag and publish
+    # `closed` also fires when a pull request is abandoned unmerged.
+    if: >-
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'release/v')
+    runs-on: ubuntu-latest
+    # The dispatched Release workflow builds multi-arch images for three
+    # targets, so this job mostly consists of waiting for it.
+    timeout-minutes: 90
+    # Optional second gate: give the `release` environment required reviewers
+    # (Settings > Environments) to require an explicit approval click before
+    # anything is tagged. An environment with no protection rules is inert, so
+    # merging the pull request remains the only approval by default.
+    environment: release
+    permissions:
+      contents: write # push the release tag
+      actions: write # dispatch and watch the Release workflow
+    steps:
+      - name: Resolve the release tag
+        id: version
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          tag="${HEAD_REF#release/}"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::Branch '${HEAD_REF}' does not encode a release tag."
+            exit 1
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the merge commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          # The tag is created against exactly this commit; the existing-tag
+          # check uses `git ls-remote`, so no local tags are needed.
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify the merged tree is that version
+        env:
+          EXPECTED_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          # The branch name is the only thing that told us the version, so
+          # confirm the merge actually carried the matching bump before tagging
+          # anything: a mis-named branch must not produce a mislabelled release.
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            const expected = process.env.EXPECTED_VERSION;
+            const manifests = [
+              "package.json",
+              "packages/backend/package.json",
+              "packages/frontend/package.json",
+            ];
+            let failed = false;
+            for (const manifest of manifests) {
+              const { version } = JSON.parse(readFileSync(manifest, "utf8"));
+              if (version !== expected) {
+                console.error(`::error file=${manifest}::expected version ${expected}, found ${version}`);
+                failed = true;
+              }
+            }
+            if (failed) process.exit(1);
+          '
+          # The changelog entry is the point of the review step; refusing to tag
+          # a commit without one keeps the release notes honest.
+          if ! grep -q "^## \[${EXPECTED_VERSION}\]" CHANGELOG.md; then
+            echo "::error file=CHANGELOG.md::no '## [${EXPECTED_VERSION}]' section."
+            exit 1
+          fi
+
+      - name: Tag the merge commit
+        id: tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          sha="$(git rev-parse HEAD)"
+
+          # `--tags` advertises an annotated tag twice: the tag object and its
+          # peeled commit (`^{}`). Compare against the commit the tag resolves
+          # to, so a lightweight tag created by hand still compares correctly.
+          remote_sha="$(git ls-remote --tags origin "refs/tags/${TAG}*" | awk -v tag="refs/tags/${TAG}" '
+            $2 == tag { plain = $1 }
+            $2 == tag "^{}" { peeled = $1 }
+            END { print (peeled == "" ? plain : peeled) }
+          ')"
+
+          if [[ -n "${remote_sha}" ]]; then
+            if [[ "${remote_sha}" != "${sha}" ]]; then
+              echo "::error::Tag ${TAG} exists but points at ${remote_sha}, not the merge commit ${sha}."
+              exit 1
+            fi
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Tag ${TAG} already points at ${sha}; re-driving the publish pipeline."
+          else
+            git tag --annotate "${TAG}" --message "${TAG}" "${sha}"
+            git push origin "refs/tags/${TAG}"
+            echo "created=true" >> "$GITHUB_OUTPUT"
+            echo "Tagged ${TAG} at ${sha}."
+          fi
+
+      - name: Run the release pipeline
+        id: dispatch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # A tag pushed with GITHUB_TOKEN does not trigger other workflows, so
+          # the publish pipeline is started explicitly; `workflow_dispatch` is
+          # the documented exception to that rule. It is also what the existing
+          # tag-based trigger offers for republishing, so nothing extra is
+          # required of the Release workflow.
+          gh workflow run release.yml --ref "${TAG}" -f "tag=${TAG}"
+
+          # Wait for the dispatched run so a failed build fails this job too,
+          # rather than leaving a tag behind with no release attached.
+          run_id=""
+          for _ in $(seq 1 30); do
+            run_id="$(gh run list --workflow=release.yml --event=workflow_dispatch --limit=20 \
+              --json databaseId,headBranch \
+              --jq ".[] | select(.headBranch == \"${TAG}\") | .databaseId" | head -n 1 || true)"
+            [[ -n "${run_id}" ]] && break
+            sleep 10
+          done
+
+          if [[ -z "${run_id}" ]]; then
+            echo "::error::The Release workflow did not start for ${TAG}."
+            exit 1
+          fi
+
+          echo "run_url=$(gh run view "${run_id}" --json url --jq .url)" >> "$GITHUB_OUTPUT"
+          gh run watch "${run_id}" --exit-status --interval 30
+
+      - name: Verify the release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release view "${TAG}" --json url,tagName --jq '"Released \(.tagName): \(.url)"'
+
+      - name: Summarize
+        if: always()
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          CREATED: ${{ steps.tag.outputs.created }}
+          RUN_URL: ${{ steps.dispatch.outputs.run_url }}
+        run: |
+          {
+            echo "## Release ${TAG}"
+            echo
+            if [[ "${CREATED}" == "true" ]]; then
+              echo "- Tag: created"
+            elif [[ "${CREATED}" == "false" ]]; then
+              echo "- Tag: already existed (reused)"
+            else
+              echo "- Tag: not reached"
+            fi
+            echo "- Publish pipeline: ${RUN_URL:-not started}"
+            echo "- GitHub Release: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${TAG}"
+            echo "- Images: \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/custotal-backend:${TAG#v}\`,"
+            echo "  \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/custotal-backend:${TAG#v}-tools\`,"
+            echo "  \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/custotal-frontend:${TAG#v}\`"
+            echo
+            echo "To recover from a failure, re-run this job: the tag step is idempotent and"
+            echo "re-drives the publish pipeline."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,83 @@
+# Docker build context for the Custotal images.
+#
+# Both Dockerfiles use the repository root as their build context, so this file
+# keeps that context small and guarantees that local state and secrets never
+# reach an image layer.
+
+# --- Version control, CI and editor state ------------------------------------
+.git
+.gitignore
+.gitattributes
+.github
+.editorconfig
+.vscode
+.idea
+.cursor
+.cursorrules
+*.copilot
+.codebuddy
+.svn
+AGENTS.md
+CODEBUDDY.md
+openspec
+
+# --- Dependencies (resolved inside the image) --------------------------------
+node_modules
+**/node_modules
+
+# --- Build output and caches -------------------------------------------------
+dist
+**/dist
+.vite
+**/.vite
+*.tsbuildinfo
+.eslintcache
+.stylelintcache
+# Prisma's generated client is produced inside the image (pnpm db:generate);
+# a locally generated copy must not be uploaded in the build context.
+**/src/generated
+
+# --- Tests, reports and local run state --------------------------------------
+packages/backend/test
+packages/frontend/e2e
+packages/frontend/src/test
+**/*.test.tsx
+**/*.test.ts
+coverage
+**/coverage
+playwright-report
+**/playwright-report
+test-results
+**/test-results
+temp
+backups
+**/backups
+*.log
+*.log.*
+*.dump
+
+# --- Local environment files and secrets (never baked into an image) ---------
+.env
+.env.*
+*.local
+
+# --- Documentation (not needed to build or run the images) -------------------
+# LICENSE and NOTICE are deliberately kept in the context so the shipped images
+# can include them (Apache-2.0 §4 requires them with distributed builds).
+docs
+**/docs
+*.md
+**/*.md
+!README.md
+
+# --- Compose files (not needed inside the images) ----------------------------
+Dockerfile*
+compose*.yml
+docker-compose*.yml
+.docker
+.dockerignore
+.docker-compose
+
+# --- OS metadata -------------------------------------------------------------
+.DS_Store
+Thumbs.db

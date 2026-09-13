@@ -1,0 +1,21 @@
+Custotal
+Copyright 2026 Orbivort
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Third-party components bundled with or derived into this product remain the
+property of their respective owners and are used under their own licenses. The
+authoritative dependency list and license metadata live in `pnpm-lock.yaml` and
+the per-package `package.json` manifests.
+
+Custotal depends on third-party software including (non-exhaustive):
+
+  - Express (MIT)
+  - Prisma (Apache-2.0)
+  - React, React DOM, React Router (MIT)
+  - Vite (MIT)
+  - Tailwind CSS (MIT)
+  - IBM Plex fonts, via @fontsource (SIL Open Font License 1.1)
+  - PostgreSQL client libraries (PostgreSQL License / MIT)
+
+Run `pnpm licenses list` to generate the complete, up-to-date inventory.

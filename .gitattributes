@@ -1,0 +1,29 @@
+# Normalize all text files to LF in the repository, regardless of the author's OS.
+# Prettier enforces LF (see .prettierrc.json), so this keeps checkouts consistent.
+* text=auto eol=lf
+
+# Windows-native scripts keep CRLF so they run in PowerShell without surprises.
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Shell scripts run inside Linux containers; a CRLF shebang would break them.
+*.sh text eol=lf
+
+# Binary assets must never be line-ending normalized.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+
+# Keep lockfiles and generated dumps out of diffs and language statistics.
+pnpm-lock.yaml -diff linguist-generated
+*.dump binary
+
+# Collapse generated/vendored content in review UIs.
+packages/frontend/dist/** linguist-generated
+packages/*/coverage/** linguist-generated
