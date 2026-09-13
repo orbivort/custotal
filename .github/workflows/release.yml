@@ -124,11 +124,11 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v5
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
 
       - name: Log in to the GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -136,7 +136,7 @@ jobs:
 
       - name: Derive backend image metadata
         id: meta-backend
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository_owner }}/custotal-backend
           tags: |
@@ -145,7 +145,7 @@ jobs:
             type=raw,value=${{ env.RELEASE_TAG }}
 
       - name: Build and push backend image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: packages/backend/Dockerfile
@@ -161,7 +161,7 @@ jobs:
 
       - name: Derive backend tools image metadata
         id: meta-backend-tools
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository_owner }}/custotal-backend
           # Same repository as the API image, published as a tag variant
@@ -174,7 +174,7 @@ jobs:
             type=raw,value=${{ env.RELEASE_TAG }}
 
       - name: Build and push backend tools image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: packages/backend/Dockerfile
@@ -192,7 +192,7 @@ jobs:
 
       - name: Derive frontend image metadata
         id: meta-frontend
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository_owner }}/custotal-frontend
           tags: |
@@ -201,7 +201,7 @@ jobs:
             type=raw,value=${{ env.RELEASE_TAG }}
 
       - name: Build and push frontend image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: packages/frontend/Dockerfile
