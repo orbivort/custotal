@@ -9,7 +9,7 @@ applicable change types — `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`
 change type is omitted for releases that have no changes of that kind. Entries describe the effect
 on people who run and use Custotal, not the internal commit history.
 
-## [1.0.0] - 2026-09-12
+## [1.0.0] - 2026-09-13
 
 Initial public release — a self-hosted customer management workspace for small sales
 teams. It covers the working surface of a small sales team, from customer records and interaction
