@@ -5,9 +5,9 @@
 Security fixes are provided for the latest release line and
 the `main` branch.
 
-| Version | Supported        |
-| ------- | ---------------- |
-| 1.x     | ✅               |
+| Version | Supported |
+| ------- | --------- |
+| 1.x     | ✅        |
 
 ## Reporting a vulnerability
 
@@ -15,7 +15,7 @@ the `main` branch.
 requests.**
 
 Report privately using **[GitHub Security Advisories](https://github.com/orbivort/custotal/security/advisories/new)**
-(the "Report a vulnerability" button on the Security tab). 
+(the "Report a vulnerability" button on the Security tab).
 
 Please include:
 
