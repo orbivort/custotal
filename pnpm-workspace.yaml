@@ -15,7 +15,7 @@ packages:
 # version bump touches a single place instead of every package.json.
 catalog:
   typescript: ^6.0.3
-  '@types/node': ^24.13.3
+  '@types/node': ^26.5.1
   # Vitest and its satellite packages MUST share one version across the whole
   # workspace; the catalog guarantees that for root + every package.
   vitest: ^4.1.10
