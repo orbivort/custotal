@@ -11,16 +11,6 @@ on people who run and use Custotal, not the internal commit history.
 
 ## [1.0.0] - 2026-09-13
 
-### Documentation
-
-- docs: update security.md
-
-### Maintenance
-
-- chore: update workflows
-
-## [1.0.0] - 2026-09-12
-
 Initial public release — a self-hosted customer management workspace for small sales
 teams. It covers the working surface of a small sales team, from customer records and interaction
 history to a configurable deal pipeline, tasks, and reporting, behind email/password authentication
@@ -71,5 +61,4 @@ with server-side role-based access control.
   attestation, and the dependency-review workflow blocks newly introduced high-severity advisories
   and copyleft licenses.
 
-[1.0.0]: https://github.com/orbivort/custotal/releases/tag/v1.0.0
 [1.0.0]: https://github.com/orbivort/custotal/releases/tag/v1.0.0
