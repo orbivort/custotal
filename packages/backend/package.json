@@ -41,11 +41,11 @@
     "pino-http": "^11.0.0"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
+    "@types/bcryptjs": "^3.0.0",
     "@types/cookie-parser": "^1.4.8",
     "@types/express": "^5.0.6",
     "@types/node": "catalog:",
-    "@types/supertest": "^6.0.2",
+    "@types/supertest": "^7.2.1",
     "prisma": "^7.9.1",
     "supertest": "^7.0.0",
     "typescript": "catalog:",
