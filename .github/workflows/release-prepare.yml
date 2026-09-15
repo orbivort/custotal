@@ -459,7 +459,8 @@ jobs:
 
           The merge commit is tagged \`${TAG}\` and the
           [Release](${repoBase}/actions/workflows/release.yml) pipeline runs: it creates the GitHub
-          Release with generated notes, attaches the frontend bundle, and publishes the
+          Release titled \`Custotal ${TAG}\` with notes extracted from this entry in \`CHANGELOG.md\`,
+          attaches the frontend bundle, and publishes the
           \`custotal-backend:${TAG}\` (API), \`custotal-backend:${TAG}-tools\` (migrations) and
           \`custotal-frontend:${TAG}\` container images to GHCR. Every image carries the same tag, so
           \`CUSTOTAL_TAG=${TAG}\` pins the whole stack, and no floating \`latest\` is published.

@@ -6,7 +6,11 @@
 # the UI's "Use workflow from" dropdown — because the checkout and the image
 # metadata both read the ref; the first step fails fast otherwise. It verifies
 # the tagged revision, builds the frontend bundle, and publishes a GitHub
-# Release with auto-generated notes and the built artifact attached.
+# Release titled `Custotal vX.Y.Z` with the built artifact attached. The release
+# notes are taken from the matching `## [X.Y.Z]` section of CHANGELOG.md (the
+# entry release-finalize.yml refuses to tag without), so the published Release
+# and the changelog never drift. A tag with no changelog section — an out-of-band
+# republish — falls back to GitHub's generated notes.
 #
 # Once the release exists, the `images` job builds the backend and frontend
 # container images for linux/amd64 and linux/arm64 and pushes them to the GitHub
@@ -103,10 +107,62 @@ jobs:
       - name: Package frontend bundle
         run: (cd packages/frontend/dist && zip -r "$GITHUB_WORKSPACE/custotal-frontend.zip" .)
 
+      - name: Extract the release notes from CHANGELOG.md
+        id: notes
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
+          NOTES_FILE: ${{ runner.temp }}/release-notes.md
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/extract-release-notes.mjs" <<'NODE'
+          import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+
+          const TAG = process.env.TAG;
+          const VERSION = TAG.replace(/^v/, '');
+          const CHANGELOG = 'CHANGELOG.md';
+
+          // Normalise line endings so the heading regex and the trailing-link
+          // strip behave identically on a CRLF checkout.
+          const source = readFileSync(CHANGELOG, 'utf8').replace(/\r\n/g, '\n');
+
+          // Anchor to the exact version: `## [1.0.1]` matches, and a `- date`
+          // suffix or trailing text is tolerated, but `## [1.0.10]` is not.
+          const escaped = VERSION.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const heading = new RegExp(`^##\\s+\\[${escaped}\\](?![0-9.])[^\\n]*$`, 'm');
+          const match = heading.exec(source);
+
+          let notes = '';
+          if (match !== null) {
+            const start = match.index + match[0].length;
+            const rest = source.slice(start);
+            // The section runs to the next `## ` heading, or to the end of the
+            // file when this is the oldest release.
+            const next = /^##\s/m.exec(rest);
+            const body = next === null ? rest : rest.slice(0, next.index);
+            // Drop the trailing link-definition footer (`[1.0.0]: https://…`):
+            // it sits after the last section and is navigation, not notes.
+            notes = body.replace(/^\[[^\]]+\]:\s+\S+\s*$/gm, '').trim();
+          }
+
+          // The release output is Markdown either way; keep the file present so
+          // the publish step can branch on emptiness alone.
+          writeFileSync(process.env.NOTES_FILE, notes === '' ? '' : `${notes}\n`);
+          appendFileSync(process.env.GITHUB_OUTPUT, `found=${notes === '' ? 'false' : 'true'}\n`);
+
+          if (notes === '') {
+            console.log(`::warning::No '## [${VERSION}]' section in CHANGELOG.md; falling back to generated notes.`);
+          } else {
+            console.log(`Extracted ${notes.split('\n').length} line(s) of release notes for ${VERSION}.`);
+          }
+          NODE
+          node "$RUNNER_TEMP/extract-release-notes.mjs"
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ env.RELEASE_TAG }}
+          NOTES_FILE: ${{ runner.temp }}/release-notes.md
+          NOTES_FOUND: ${{ steps.notes.outputs.found }}
         run: |
           set -euo pipefail
           # Idempotent: a re-run (for example after a failed image build) must
@@ -115,10 +171,19 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG already exists; keeping its notes and assets."
           else
+            # The changelog section for this version is the source of truth;
+            # GitHub's generated notes are a fallback for an out-of-band tag
+            # that predates the entry (release-finalize.yml guarantees one for
+            # every tagged release).
+            if [[ "${NOTES_FOUND}" == "true" ]]; then
+              notes_args=(--notes-file "${NOTES_FILE}")
+            else
+              notes_args=(--generate-notes)
+            fi
             gh release create "$TAG" \
               "$GITHUB_WORKSPACE/custotal-frontend.zip" \
-              --title "$TAG" \
-              --generate-notes \
+              --title "Custotal ${TAG}" \
+              "${notes_args[@]}" \
               --verify-tag
           fi
 
