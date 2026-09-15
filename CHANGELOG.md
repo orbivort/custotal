@@ -11,11 +11,27 @@ on people who run and use Custotal, not the internal commit history.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-09-15
+
 ### Security
 
 - **Email validation hardening** — an email address is now checked with a linear-time validator that
   caps the field at the RFC 5321 maximum (254 characters) before any matching, instead of a pattern
   that backtracked.
+
+### Documentation
+
+- docs: update changelog
+
+### Maintenance
+
+- chore: update release workflow
+- chore: add github pages
+- chore: fix codeql reported issues
+- chore(deps-dev): bump the root-dev-dependencies group across 1 directory with 4 updates
+- chore: update readme
+- chore(deps): bump the github-actions group across 1 directory with 4 updates
+- chore(deps): bump nodemailer from 10.0.3 to 10.0.8
 
 ## [1.0.0] - 2026-09-13
 
@@ -70,5 +86,6 @@ control.
   attestation, and the dependency-review workflow blocks newly introduced high-severity advisories
   and copyleft licenses.
 
-[Unreleased]: https://github.com/orbivort/custotal/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/orbivort/custotal/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/orbivort/custotal/releases/tag/v1.0.1
 [1.0.0]: https://github.com/orbivort/custotal/releases/tag/v1.0.0
