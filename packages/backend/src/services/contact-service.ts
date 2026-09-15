@@ -2,7 +2,12 @@
 // account-link replacement, and the single-contact data export (FR-CC-16).
 import { prisma } from '../db.ts';
 import { errors, FIELD_MESSAGES, type FieldError } from '../lib/errors.ts';
-import { assertNoConflict, CONTACT_STATUSES, EMAIL_RE, optionalString } from '../lib/validation.ts';
+import {
+  assertNoConflict,
+  CONTACT_STATUSES,
+  isValidEmail,
+  optionalString,
+} from '../lib/validation.ts';
 import { toContact } from '../serializers.ts';
 import type { Contact, User } from '../types/domain.ts';
 
@@ -51,7 +56,7 @@ function validateContact(body: {
 }): FieldError[] {
   const details: FieldError[] = [];
   const email = optionalString(body.email);
-  if (email && !EMAIL_RE.test(email)) {
+  if (email && !isValidEmail(email)) {
     details.push({ field: 'email', message: FIELD_MESSAGES.invalidEmail });
   }
   if (!email && !optionalString(body.phone)) {

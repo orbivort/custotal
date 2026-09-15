@@ -231,6 +231,11 @@ To try the UI **without a database**, set `VITE_ENABLE_MOCKS=true` in
 seeded demo workspace in development only. It is never active outside the Vite
 dev server, and the flag must not be `true` in a production build.
 
+The same demo is available as a standalone static site: `pnpm build:demo`
+produces the bundle published to GitHub Pages by
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml). That build boots the
+mock workspace on purpose — the site it produces has no backend behind it.
+
 For a production deployment, see [`docs/self-hosting.md`](docs/self-hosting.md).
 
 ## Docker
@@ -267,13 +272,17 @@ PowerShell, where `\` is not a line continuation.
 Both images are multi-stage and run as a non-root user with a container health
 check. Tagged builds publish them to the GitHub Container Registry
 (`ghcr.io/orbivort/custotal-backend`, `ghcr.io/orbivort/custotal-frontend`); set
-`CUSTOTAL_TAG` in `.env.docker` to pull a released version instead of building
-locally. The backend is published twice from one Dockerfile: the API image
-(production dependencies only) and the matching `<tag>-tools` variant that the
-one-shot `migrate` service uses — the only one shipping the Prisma CLI. The
-Compose stack runs production-parity images; use `pnpm dev` for live-reload
-development. See [Docker deployment](docs/self-hosting.md#docker) for
-configuration, migrations, backups, and upgrades.
+`CUSTOTAL_TAG=v1.0.0` in `.env.docker` to pull a released version instead of
+building locally (`v` included — images are tagged with the release ref). The
+backend is published twice from one Dockerfile: the API image (production
+dependencies only) and the matching `<tag>-tools` variant that the one-shot
+`migrate` service uses — the only one shipping the Prisma CLI. The two variants
+are released under the same version (`v1.0.0` and `v1.0.0-tools`), so a single
+`CUSTOTAL_TAG` pins the whole stack; only released tags are published, with no
+`latest` to float underneath a deployment. The Compose stack runs
+production-parity images; use `pnpm dev` for live-reload development. See
+[Docker deployment](docs/self-hosting.md#docker) for configuration, migrations,
+backups, and upgrades.
 
 Both images resolve their npm/pnpm packages from `https://registry.npmjs.org/`
 by default. To build through a mirror, set `NPM_REGISTRY` in `.env.docker` (used
@@ -323,6 +332,7 @@ Run from the repository root:
 | ----------------------------- | ------------------------------- |
 | Both dev servers              | `pnpm dev`                      |
 | Frontend production build     | `pnpm build`                    |
+| Frontend demo build (Pages)   | `pnpm build:demo`               |
 | Typecheck (frontend+backend)  | `pnpm typecheck`                |
 | ESLint (whole workspace)      | `pnpm lint`                     |
 | Stylelint (frontend CSS)      | `pnpm lint:css`                 |

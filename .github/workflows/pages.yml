@@ -1,0 +1,134 @@
+# GitHub Pages deployment — publishes the frontend as a backend-free demo site.
+#
+# The site is a static bundle with no API behind it, so it is built with
+# `--mode demo` (see `build:demo`): Mock Service Worker boots the seeded demo
+# workspace in the browser and the sign-in form arrives prefilled with the demo
+# administrator. This is the only deployment that intentionally ships the mock
+# graph — `pnpm build`, the bundle released and containerised for self-hosting,
+# still drops it entirely (see packages/frontend/src/config/env.ts).
+#
+# Two details are specific to Pages and are handled here rather than in the app:
+#   - A project site is served from /<repo>/, so `base` is set from the
+#     `base_path` reported by actions/configure-pages.
+#   - Pages has no rewrite rules. index.html is therefore also emitted as
+#     404.html, which is what Pages serves for an unmatched path: the SPA boots
+#     and the client-side router resolves the deep link on a hard refresh.
+#
+# One-time setup: Settings → Pages → Build and deployment → Source must be
+# "GitHub Actions". `actions/configure-pages` cannot do it from here — its
+# `enablement` input needs a token other than the built-in GITHUB_TOKEN.
+#
+# Gate: this deploys on every push to main, like the docs/marketing artifact it
+# is. The `quality`, `unit` and `build` jobs in ci.yml run on the same commits;
+# this workflow deliberately re-runs only the typecheck and build that its own
+# artifact depends on, so a broken demo is caught here instead of going live.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    # Rebuild only for changes that can alter the site. The manifests are
+    # included because a dependency bump rewrites the bundle without touching
+    # frontend sources.
+    paths:
+      - 'packages/frontend/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig.base.json'
+      - '.nvmrc'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+# Never cancel a deployment in flight: a half-published site is worse than a
+# slightly stale one. Queued runs wait their turn instead.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build demo bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5 # reads packageManager from package.json
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      # Reports the site's base path and deployment URL. Must run before the
+      # build, which derives VITE_BASE_PATH from the `base_path` output.
+      - name: Setup Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      # Only the frontend's dependency subtree: the demo build pulls in no
+      # backend code, so the Prisma client never has to be generated here.
+      - run: pnpm install --frozen-lockfile --filter @custotal/frontend...
+
+      - name: Build the frontend (demo mode)
+        env:
+          # "" for a user/org site or a custom domain, "/<repo>" for a project
+          # site. vite.config.ts normalises it into a usable `base`.
+          VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+        # Runs `tsc --noEmit` before bundling, so a type error fails the deploy
+        # instead of publishing a bundle that cannot work.
+        run: pnpm --filter @custotal/frontend build:demo
+
+      # A demo bundle with the mock graph tree-shaken away would ship a sign-in
+      # form that can never authenticate: there is no backend behind this site.
+      # The storage key only exists in the mock dataset, so finding it proves
+      # MSW was bundled. The inverse check — that `pnpm build` leaves it out — is
+      # the invariant documented in packages/frontend/docs/api-integration.md.
+      - name: Verify the demo bundle carries the mock dataset
+        run: |
+          set -euo pipefail
+          if grep -rqF 'custotal-db-v5-' packages/frontend/dist; then
+            echo "mock dataset present in the demo bundle"
+          else
+            echo "::error::No mock dataset in the demo bundle — MSW was tree-shaken, so sign-in cannot work."
+            exit 1
+          fi
+
+      # Client-side routing fallback. Pages answers an unmatched path with
+      # 404.html, and a copy of the shell lets the router resolve it.
+      - name: Emit the SPA fallback document
+        run: cp packages/frontend/dist/index.html packages/frontend/dist/404.html
+
+      # Vite emits no underscore-prefixed assets today, so Jekyll would leave
+      # them alone — but the file costs nothing and removes the whole class of
+      # "an asset silently disappeared" failures.
+      - name: Disable Jekyll processing
+        run: touch packages/frontend/dist/.nojekyll
+
+      - name: Upload the Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: packages/frontend/dist
+          # `.nojekyll` is a dotfile, and dotfiles are excluded by default.
+          include-hidden-files: true
+
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build
+    # The `github-pages` environment carries the deployment URL and is where
+    # deployment protection rules (e.g. a required reviewer) would be attached.
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

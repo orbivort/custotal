@@ -1,10 +1,9 @@
 import { http } from 'msw';
 import type { Role, Stage, StageClassification, User } from '../../types/domain';
 import { ALL_ROLES } from '../../lib/rbac';
+import { isValidEmail } from '../../lib/validation';
 import { getDB, persist } from '../db/store';
 import { adminGate, err, genId, json, nowISO } from './helpers';
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function stageInUse(db: ReturnType<typeof getDB>, stageId: string): number {
   return db.opportunities.filter((o) => o.stageId === stageId).length;
@@ -46,7 +45,7 @@ export const adminHandlers = [
     const email = (body.email ?? '').trim().toLowerCase();
     const role = body.role ?? 'rep';
     if (!name) details.push({ field: 'name', message: 'Full name is required.' });
-    if (!EMAIL_RE.test(email)) details.push({ field: 'email', message: 'Invalid email format.' });
+    if (!isValidEmail(email)) details.push({ field: 'email', message: 'Invalid email format.' });
     else if (db.users.some((u) => u.email.toLowerCase() === email)) {
       details.push({ field: 'email', message: 'A user with this email already exists.' });
     }
@@ -81,7 +80,7 @@ export const adminHandlers = [
     }
     if (body.email !== undefined) {
       const email = body.email.trim().toLowerCase();
-      if (!EMAIL_RE.test(email)) details.push({ field: 'email', message: 'Invalid email format.' });
+      if (!isValidEmail(email)) details.push({ field: 'email', message: 'Invalid email format.' });
       else if (db.users.some((u) => u.email.toLowerCase() === email && u.id !== existing.id)) {
         details.push({ field: 'email', message: 'A user with this email already exists.' });
       } else next.email = email;

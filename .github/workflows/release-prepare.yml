@@ -460,8 +460,9 @@ jobs:
           The merge commit is tagged \`${TAG}\` and the
           [Release](${repoBase}/actions/workflows/release.yml) pipeline runs: it creates the GitHub
           Release with generated notes, attaches the frontend bundle, and publishes the
-          \`custotal-backend\`, \`custotal-backend:${VERSION}-tools\` and \`custotal-frontend\`
-          container images to GHCR.
+          \`custotal-backend:${TAG}\` (API), \`custotal-backend:${TAG}-tools\` (migrations) and
+          \`custotal-frontend:${TAG}\` container images to GHCR. Every image carries the same tag, so
+          \`CUSTOTAL_TAG=${TAG}\` pins the whole stack, and no floating \`latest\` is published.
 
           Re-dispatching **Release: prepare** rebuilds this branch from \`${process.env.BASE}\` and
           overwrites edits made here, so prefer to fix the branch in place.

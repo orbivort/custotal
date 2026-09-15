@@ -31,11 +31,11 @@ HTTP client                        (src/lib/api.ts)  → base URL + credentials
 
 ## Data source toggle (`VITE_ENABLE_MOCKS`)
 
-| Value                      | Behavior                                                                  |
-| -------------------------- | ------------------------------------------------------------------------- |
-| unset (default)            | **Real API.** Requests go to the same origin (dev proxy / deployed host). |
-| `true`                     | MSW intercepts `/api/*` in the Vite dev server only.                      |
-| anything else / prod build | MSW never boots.                                                          |
+| Value                            | Behavior                                                                  |
+| -------------------------------- | ------------------------------------------------------------------------- |
+| unset (default)                  | **Real API.** Requests go to the same origin (dev proxy / deployed host). |
+| `true`                           | MSW intercepts `/api/*` in the Vite dev server only.                      |
+| anything else / production build | MSW never boots — the opt-in demo build is the one exception (see below). |
 
 Set it for local mock-driven work in a frontend-only `.env.local`:
 
@@ -43,19 +43,34 @@ Set it for local mock-driven work in a frontend-only `.env.local`:
 VITE_ENABLE_MOCKS=true
 ```
 
-MSW is **excluded from non-development builds**. `src/main.tsx` gates the MSW
-boot behind `if (import.meta.env.DEV)`. Vite replaces `import.meta.env.DEV`
-with `false` during production builds, so the block — and the entire mock
-module graph — is eliminated. The `validate` workflow confirms this by grepping
-the production bundle for the mock database marker (`custotal-db-v1`).
+MSW is **excluded from production builds**. `src/main.tsx` gates the MSW boot
+behind `if (import.meta.env.DEV || import.meta.env.MODE === 'demo')`. Vite
+replaces both operands with literals at build time, so in a production build the
+condition folds to `false` and the block — with the entire mock module graph — is
+eliminated.
+
+### Demo build (`pnpm build:demo`)
+
+The one build where MSW _is_ expected to boot is the **demo build**
+(`vite build --mode demo`), which `.github/workflows/pages.yml` publishes to
+GitHub Pages. That site is static and has no backend behind it, so it serves the
+seeded demo workspace and the sign-in form arrives prefilled with the demo
+administrator.
+
+`VITE_ENABLE_MOCKS` is deliberately **not** consulted there — the mode is the
+switch — so a demo build cannot be published as a site whose only data source was
+silently tree-shaken away. The Pages workflow asserts the mock dataset is present
+before deploying; the inverse assertion (that `pnpm build` leaves it out) is in
+[Validation](#validation).
 
 ## Environment variables
 
-| Variable                | Default                 | Purpose                                               |
-| ----------------------- | ----------------------- | ----------------------------------------------------- |
-| `VITE_ENABLE_MOCKS`     | unset → off             | Opt into Mock Service Worker (dev only).              |
-| `VITE_API_BASE_URL`     | empty                   | Absolute backend origin for cross-origin deployments. |
-| `VITE_API_PROXY_TARGET` | `http://localhost:4000` | Dev-proxy target override (rarely needed).            |
+| Variable                | Default                 | Purpose                                                            |
+| ----------------------- | ----------------------- | ------------------------------------------------------------------ |
+| `VITE_ENABLE_MOCKS`     | unset → off             | Opt into Mock Service Worker in development only.                  |
+| `VITE_API_BASE_URL`     | empty                   | Absolute backend origin for cross-origin deployments.              |
+| `VITE_API_PROXY_TARGET` | `http://localhost:4000` | Dev-proxy target override (rarely needed).                         |
+| `VITE_BASE_PATH`        | `/`                     | Sub-path the bundle is served from (build only, e.g. `/custotal`). |
 
 All variables are parsed once in `src/config/env.ts` (`env.apiBaseUrl`,
 `env.mocksEnabled`) and read from there everywhere.
@@ -157,9 +172,11 @@ handler under `src/mocks/handlers/`.
 - **In-house data hooks instead of a data-fetching library.** The existing
   `useQuery` is small and dependency-free; adding `useMutation` keeps the
   bundle lean for a codebase this size (no react-query/tanstack dependency).
-- **MSW excluded from production.** Gating on the statically-replaced
-  `import.meta.env.DEV` lets the bundler drop the mock graph, verified by
-  checking the production bundle for mock markers.
+- **MSW excluded from production, explicit in the demo.** Gating on the
+  statically-replaced `import.meta.env.DEV` / `MODE` literals lets the bundler
+  drop the mock graph from production builds, while the opt-in `demo` build mode
+  keeps the backend-free GitHub Pages site working. Both directions are asserted
+  with a mock-dataset marker, so neither can regress silently.
 
 ## Validation
 
@@ -175,10 +192,11 @@ pnpm --filter @custotal/frontend build
 Then confirm the mock code was not bundled:
 
 ```bash
-findstr /S /M /C:"custotal-db-v1" packages/frontend/dist
+findstr /S /M /C:"custotal-db-v5-" packages/frontend/dist
 ```
 
-No matches means the production bundle is MSW-free. To exercise the real API
-locally: start the backend (`pnpm backend:dev`) and the frontend (`pnpm dev`);
-to exercise mocks, create a frontend `.env.local` with
-`VITE_ENABLE_MOCKS=true` and start `pnpm dev`.
+No matches means the production bundle is MSW-free. The demo build
+(`pnpm build:demo`) is the opposite case and must match, because that bundle has
+no backend to fall back on. To exercise the real API locally: start the backend
+(`pnpm backend:dev`) and the frontend (`pnpm dev`); to exercise mocks, create a
+frontend `.env.local` with `VITE_ENABLE_MOCKS=true` and start `pnpm dev`.

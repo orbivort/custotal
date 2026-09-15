@@ -9,9 +9,10 @@ import {
   assertNoConflict,
   CONTACT_IMPORT_FIELDS,
   CONTACT_STATUSES,
-  EMAIL_RE,
+  EMAIL_MAX_LENGTH,
   INTERACTION_DIRECTIONS,
   INTERACTION_TYPES,
+  isValidEmail,
   optionalString,
   optionalStringOrNull,
   STAGE_CLASSIFICATIONS,
@@ -19,7 +20,7 @@ import {
   TASK_STATUSES,
 } from '../../../src/lib/validation.ts';
 
-describe('EMAIL_RE', () => {
+describe('isValidEmail', () => {
   it.each([
     'user@test.example',
     'first.last+tag@sub.domain.co',
@@ -27,7 +28,7 @@ describe('EMAIL_RE', () => {
     'a@b.c',
     "o'brien@example.com",
   ])('accepts %s', (email) => {
-    expect(EMAIL_RE.test(email)).toBe(true);
+    expect(isValidEmail(email)).toBe(true);
   });
 
   it.each([
@@ -35,6 +36,8 @@ describe('EMAIL_RE', () => {
     'plain',
     'a@b',
     'a@b.',
+    'a@b.c.',
+    'a@b..c',
     '@example.com',
     'user@',
     'user@@example.com',
@@ -43,13 +46,27 @@ describe('EMAIL_RE', () => {
     'user@example.com ',
     'user\t@example.com',
   ])('rejects %s', (email) => {
-    expect(EMAIL_RE.test(email)).toBe(false);
+    expect(isValidEmail(email)).toBe(false);
   });
 
-  it('is stateless (no /g flag, so repeated tests agree)', () => {
-    expect(EMAIL_RE.global).toBe(false);
-    expect(EMAIL_RE.test('user@test.example')).toBe(true);
-    expect(EMAIL_RE.test('user@test.example')).toBe(true);
+  it('rejects an address longer than EMAIL_MAX_LENGTH', () => {
+    const suffix = '@example.com';
+    const atLimit = `${'a'.repeat(EMAIL_MAX_LENGTH - suffix.length)}${suffix}`;
+    expect(atLimit).toHaveLength(EMAIL_MAX_LENGTH);
+    expect(isValidEmail(atLimit)).toBe(true);
+    expect(isValidEmail(`x${atLimit}`)).toBe(false);
+  });
+
+  it('rejects hostile input without backtracking (regression for js/polynomial-redos)', () => {
+    // Many dots with an invalid tail: the old `^[^\s@]+@[^\s@]+\.[^\s@]+$` (whose
+    // literal dot overlapped `[^\s@]`) needed ~1.4 s for this value and was
+    // reachable through the 12 MB CSV import body. It is now rejected by the
+    // length cap, and the "many dots" shape is rejected by the label split.
+    const oversized = `a@${'b.'.repeat(40_000)} `;
+    const started = Date.now();
+    expect(isValidEmail(oversized)).toBe(false);
+    expect(Date.now() - started).toBeLessThan(100);
+    expect(isValidEmail(`a@${'b.'.repeat(40)} `)).toBe(false);
   });
 });
 

@@ -14,8 +14,16 @@
 # targets from one Dockerfile: the API (`runtime`) and the migration/operator
 # toolchain (`tools`, published as a `<version>-tools` tag variant of the same
 # repository). All images are published with an SBOM and a provenance
-# attestation; pin a released tag (never `latest`) when self-hosting — see
-# docs/self-hosting.md.
+# attestation, and every tag is derived from the release ref, so a self-hoster
+# pins one `CUSTOTAL_TAG` for the whole stack — see docs/self-hosting.md.
+#
+# The action's implicit `latest` tag is switched off on every image (the
+# `flavor` blocks below). `latest` is never suffixed by the `-tools` flavor, so
+# it would exist for the API and the SPA but not for the `tools` image, which
+# Compose derives as `${CUSTOTAL_TAG}-tools`: a floating tag that resolves two of
+# the three images and hard-fails the `migrate` job is worse than no floating tag
+# at all. Releases therefore publish only immutable tags (`v1.0.0`, `1.0.0`,
+# `1.0` and their `-tools` counterparts).
 #
 # The `gh` CLI is preinstalled on GitHub-hosted runners, so no third-party
 # release action is required.
@@ -139,6 +147,9 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository_owner }}/custotal-backend
+          # Released tags only — see the header for why `latest` is off.
+          flavor: |
+            latest=false
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -167,7 +178,13 @@ jobs:
           # Same repository as the API image, published as a tag variant
           # (v1.0.0-tools): the compose `migrate` service pulls the matching
           # `<tag>-tools`, so both must be released together.
-          flavor: suffix=-tools
+          # `latest=false` mirrors the API image's flavor block: the suffix is
+          # never applied to `latest`, so leaving it on would publish a tag for
+          # the API but not for this variant. `flavor` is a newline-delimited
+          # list, hence one attribute per line in a single block.
+          flavor: |
+            latest=false
+            suffix=-tools
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -195,6 +212,9 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository_owner }}/custotal-frontend
+          # Same policy as the backend images: released tags only.
+          flavor: |
+            latest=false
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}

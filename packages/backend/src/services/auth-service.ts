@@ -7,7 +7,7 @@ import { env } from '../config.ts';
 import { logger } from '../logger.ts';
 import { errors, type FieldError } from '../lib/errors.ts';
 import { hashToken, generateToken } from '../lib/tokens.ts';
-import { EMAIL_RE } from '../lib/validation.ts';
+import { isValidEmail } from '../lib/validation.ts';
 import { toUser } from '../serializers.ts';
 import type { User } from '../types/domain.ts';
 import { sendPasswordReset } from './mailer.ts';
@@ -48,7 +48,7 @@ export interface LoginResult {
 }
 
 export async function login(email: string, password: string): Promise<LoginResult> {
-  if (!EMAIL_RE.test(email.trim())) throw errors.invalidCredentials();
+  if (!isValidEmail(email.trim())) throw errors.invalidCredentials();
   const user = await findUserByEmail(email);
   if (!user || !(await verifyPassword(password, user.passwordHash))) {
     throw errors.invalidCredentials();

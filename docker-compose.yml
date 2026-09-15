@@ -19,8 +19,11 @@
 #
 # Images are built locally from this repository by default. To run the images
 # the release pipeline publishes to GHCR, set CUSTOTAL_TAG to a released version
+# (`v1.0.0`, keeping the `v` — the pipeline tags with the release ref verbatim)
 # and CUSTOTAL_REGISTRY to the owner-prefixed registry path (e.g.
 # `ghcr.io/orbivort/`); `pnpm docker:pull` then fetches them instead of building.
+# Only released tags are published — there is no `latest` — and one tag resolves
+# all three images, including the `<tag>-tools` variant below.
 name: custotal
 
 # Shared API configuration, injected ahead of the single `.env.docker` file so a

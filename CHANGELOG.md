@@ -9,6 +9,14 @@ applicable change types — `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`
 change type is omitted for releases that have no changes of that kind. Entries describe the effect
 on people who run and use Custotal, not the internal commit history.
 
+## [Unreleased]
+
+### Security
+
+- **Email validation hardening** — an email address is now checked with a linear-time validator that
+  caps the field at the RFC 5321 maximum (254 characters) before any matching, instead of a pattern
+  that backtracked.
+
 ## [1.0.0] - 2026-09-13
 
 Initial public release — Custotal is a self-hosted CRM that keeps your customer data in your
@@ -62,4 +70,5 @@ control.
   attestation, and the dependency-review workflow blocks newly introduced high-severity advisories
   and copyleft licenses.
 
+[Unreleased]: https://github.com/orbivort/custotal/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/orbivort/custotal/releases/tag/v1.0.0

@@ -28,9 +28,17 @@ export interface EnvConfig {
   /** True when running under the Vite dev server. */
   readonly isDev: boolean;
   /**
-   * Whether Mock Service Worker should boot. Only possible in development and
-   * requires `VITE_ENABLE_MOCKS === 'true'`. Defaults to false: the app talks
-   * to the real backend unless a developer explicitly opts into mock data.
+   * True for a `vite build --mode demo` bundle: the GitHub Pages deployment that
+   * publishes the seeded mock workspace as a backend-free static preview. False
+   * under the dev server and in every production build.
+   */
+  readonly isDemoBuild: boolean;
+  /**
+   * Whether Mock Service Worker should boot. True in development when
+   * `VITE_ENABLE_MOCKS === 'true'` — the flag defaults to false, so the app
+   * talks to the real backend unless a developer explicitly opts into mock
+   * data — and true in a demo build, which has no backend by design. Never true
+   * in a production build.
    */
   readonly mocksEnabled: boolean;
   /**
@@ -79,13 +87,21 @@ function resolveCurrencySymbol(code: string): string {
   }
 }
 
-const mocksEnabled = import.meta.env.DEV && readBool(import.meta.env.VITE_ENABLE_MOCKS);
+// A demo build is the only non-development build allowed to boot MSW. A normal
+// production build resolves MODE to "production", so the gate below stays closed
+// and the mock module graph is eliminated from the bundle exactly as before.
+const isDemoBuild = import.meta.env.MODE === 'demo';
+
+const mocksEnabled = import.meta.env.DEV
+  ? readBool(import.meta.env.VITE_ENABLE_MOCKS)
+  : isDemoBuild;
 const rawBaseUrl = String(import.meta.env.VITE_API_BASE_URL ?? '');
 
 const defaultCurrency = resolveDefaultCurrency();
 
 export const env: EnvConfig = {
   isDev: import.meta.env.DEV,
+  isDemoBuild,
   mocksEnabled,
   apiBaseUrl: mocksEnabled ? '' : stripTrailingSlashes(rawBaseUrl),
   defaultCurrency,
