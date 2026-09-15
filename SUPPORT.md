@@ -1,6 +1,7 @@
 # Support
 
-Thanks for using Custotal. Here is where to get help.
+Custotal is a self-hosted CRM that keeps your customer data in your custody. Here is where to get
+help.
 
 ## Documentation first
 

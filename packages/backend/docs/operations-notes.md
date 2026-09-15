@@ -14,15 +14,24 @@ The backend currently assumes **exactly one process instance**:
   _Before the second replica_: swap `express-rate-limit` to a shared store
   (`rate-limiter-redis` + Redis) — the middleware API supports it without
   route changes.
-- **No container image / non-root user story yet** (no Dockerfile). Deployment
-  currently assumes `NODE_ENV=production`, `COOKIE_SECURE` (now default-on in
-  production), and a process supervisor (systemd / container runtime) handling
-  restarts — the app itself drains in-flight requests on `SIGTERM` within a
-  10 s grace window (`src/index.ts`).
+- **Single-runner purge timer.** The daily soft-delete purge is an in-process
+  timer armed once the server is listening, so two replicas would both run it.
+  _Before the second replica_: move the purge to an external scheduler or guard
+  it with a PostgreSQL advisory lock.
 - **No APM / metrics agent**. Structured pino logs (stdout, request-id
   correlated) are the observability surface; a diagnostics/maintenance endpoint
   is not implemented. Revisit when event-loop lag and memory trend monitoring
   are needed.
+
+Container images **do** exist: both packages ship a multi-stage Dockerfile
+(`packages/backend/Dockerfile`, `packages/frontend/Dockerfile`) that runs as a
+non-root user with a container health check, and the release pipeline publishes
+them to GHCR with an SBOM and a provenance attestation. `docker-compose.yml` is
+the supported deployment path. A from-source deployment still assumes
+`NODE_ENV=production`, `COOKIE_SECURE` (default-on in production), and a process
+supervisor (systemd / container runtime) to handle restarts — the app itself
+drains in-flight requests on `SIGTERM` within a 10 s grace window
+(`src/index.ts`).
 
 ## 2. Password hashing stays on bcryptjs
 

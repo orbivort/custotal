@@ -2,7 +2,7 @@
   "name": "@custotal/frontend",
   "private": true,
   "version": "1.0.0",
-  "description": "Custotal frontend — React 19 + Vite 8 single-page application.",
+  "description": "Custotal frontend — React 19 + Vite 8 single-page application for the self-hosted CRM.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -10,11 +10,17 @@
     "directory": "packages/frontend"
   },
   "type": "module",
+  "engines": {
+    "node": "^24.19.0",
+    "pnpm": "^11.21.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.e2e.json",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

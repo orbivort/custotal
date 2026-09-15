@@ -16,6 +16,11 @@ For anything large, **open an issue first** so we can agree on the approach befo
 
 ## Development setup
 
+The [README quick start](README.md#quick-start) is the single source of truth for
+setup, and has both a POSIX and a Windows PowerShell variant. The steps are
+repeated below with the contributor-specific notes; if the two ever diverge, the
+README wins.
+
 1. **Prerequisites** — Node `^24.19.0`, pnpm `^11.21.0`, and PostgreSQL `18+`.
 2. **Install dependencies**
 

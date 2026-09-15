@@ -2,7 +2,7 @@
   "name": "@custotal/backend",
   "private": true,
   "version": "1.0.0",
-  "description": "Custotal backend — Express 5 + Prisma 7 + PostgreSQL REST API.",
+  "description": "Custotal backend — Express 5 + Prisma 7 + PostgreSQL REST API for the self-hosted CRM.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -10,11 +10,16 @@
     "directory": "packages/backend"
   },
   "type": "module",
+  "engines": {
+    "node": "^24.19.0",
+    "pnpm": "^11.21.0"
+  },
   "scripts": {
     "dev": "node --env-file-if-exists=.env --watch src/index.ts",
     "start": "node --env-file-if-exists=.env src/index.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",

@@ -11,10 +11,11 @@ on people who run and use Custotal, not the internal commit history.
 
 ## [1.0.0] - 2026-09-13
 
-Initial public release — a self-hosted customer management workspace for small sales
-teams. It covers the working surface of a small sales team, from customer records and interaction
-history to a configurable deal pipeline, tasks, and reporting, behind email/password authentication
-with server-side role-based access control.
+Initial public release — Custotal is a self-hosted CRM that keeps your customer data in your
+custody: one API process, one PostgreSQL database, one Compose file. It covers the working surface of
+a small sales team, from customer records and interaction history to a configurable deal pipeline,
+tasks, and reporting, behind email/password authentication with server-side role-based access
+control.
 
 ### Added
 
