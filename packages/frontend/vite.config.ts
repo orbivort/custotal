@@ -24,6 +24,20 @@ function appVersionPlugin(): Plugin {
   };
 }
 
+// Deployment sub-path the bundle is served from. A GitHub Pages project site
+// lives under /<repo>/, so the Pages workflow passes the `base_path` reported by
+// actions/configure-pages (e.g. "/custotal"); a user/org site or a custom domain
+// reports "" and stays at the root. Vite accepts only "/" or a value that both
+// starts and ends with "/", so the normalisation lives here instead of in every
+// consumer of import.meta.env.BASE_URL.
+function resolveBasePath(raw: string | undefined): string {
+  const value = (raw ?? '').trim();
+  if (value === '' || value === '/') return '/';
+  // An absolute URL (e.g. a CDN origin) is already well-formed: pass it through.
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) return value;
+  return `/${value.replace(/^\/+/, '').replace(/\/+$/, '')}/`;
+}
+
 export default defineConfig(({ mode }) => {
   // Dev-only transport for real API traffic. When the app is not running with
   // MSW (VITE_ENABLE_MOCKS=true), relative /api/* requests are forwarded to the
@@ -35,6 +49,8 @@ export default defineConfig(({ mode }) => {
     viteEnv.VITE_API_PROXY_TARGET || viteEnv.VITE_API_BASE_URL || 'http://localhost:4000';
 
   return {
+    base: resolveBasePath(viteEnv.VITE_BASE_PATH),
+
     plugins: [appVersionPlugin(), react(), tailwindcss()],
 
     server: {

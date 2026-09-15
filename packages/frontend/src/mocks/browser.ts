@@ -11,8 +11,13 @@ import { reportHandlers } from './handlers/reports';
 import { searchHandlers } from './handlers/search';
 import { taskHandlers } from './handlers/tasks';
 
-/** The worker script itself — it is served out of `public/`, not from this graph. */
-const WORKER_SCRIPT_URL = '/mockServiceWorker.js';
+/**
+ * The worker script itself — it is served out of `public/`, not from this graph.
+ * Resolved against Vite's BASE_URL rather than hardcoded to the origin root, so
+ * the registration follows the deployed sub-path (GitHub Pages serves the demo
+ * build from /<repo>/) and the worker's scope still covers the application.
+ */
+const WORKER_SCRIPT_URL = `${import.meta.env.BASE_URL}mockServiceWorker.js`;
 
 export const worker = setupWorker(
   ...authHandlers,
@@ -78,5 +83,13 @@ async function dropStaleRegistration(): Promise<void> {
  */
 export async function startMockApi(): Promise<void> {
   await dropStaleRegistration();
-  await worker.start({ onUnhandledRequest: 'bypass' });
+  await worker.start({
+    onUnhandledRequest: 'bypass',
+    // MSW registers its worker at the origin root ("/mockServiceWorker.js") by
+    // default, which 404s whenever the bundle is served from a sub-path — the
+    // GitHub Pages demo lives under /<repo>/. Passing the base-prefixed URL also
+    // keeps the registration's scope over the application; a worker registered a
+    // level up would leave the page uncontrolled and intercept nothing.
+    serviceWorker: { url: WORKER_SCRIPT_URL },
+  });
 }

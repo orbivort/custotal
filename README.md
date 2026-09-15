@@ -231,6 +231,11 @@ To try the UI **without a database**, set `VITE_ENABLE_MOCKS=true` in
 seeded demo workspace in development only. It is never active outside the Vite
 dev server, and the flag must not be `true` in a production build.
 
+The same demo is available as a standalone static site: `pnpm build:demo`
+produces the bundle published to GitHub Pages by
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml). That build boots the
+mock workspace on purpose — the site it produces has no backend behind it.
+
 For a production deployment, see [`docs/self-hosting.md`](docs/self-hosting.md).
 
 ## Docker
@@ -323,6 +328,7 @@ Run from the repository root:
 | ----------------------------- | ------------------------------- |
 | Both dev servers              | `pnpm dev`                      |
 | Frontend production build     | `pnpm build`                    |
+| Frontend demo build (Pages)   | `pnpm build:demo`               |
 | Typecheck (frontend+backend)  | `pnpm typecheck`                |
 | ESLint (whole workspace)      | `pnpm lint`                     |
 | Stylelint (frontend CSS)      | `pnpm lint:css`                 |

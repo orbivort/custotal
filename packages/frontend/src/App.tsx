@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import { createBrowserRouter, Navigate, RouterProvider } from 'react-router';
+import { createBrowserRouter, Navigate, RouterProvider, type RouteObject } from 'react-router';
 import { ToastProvider } from './components/toast';
 import { RequireAuth } from './components/RequireAuth';
 import { RequireRole } from './components/RequireRole';
@@ -33,7 +33,14 @@ const AdminStagesPage = lazy(() => import('./features/admin/AdminStagesPage'));
 const ImportWizardPage = lazy(() => import('./features/admin/ImportWizardPage'));
 const RecoveryPage = lazy(() => import('./features/admin/RecoveryPage'));
 
-const router = createBrowserRouter([
+// The bundle is not always served from the origin root: the GitHub Pages demo
+// lives under /<repo>/. Vite injects the configured `base` as BASE_URL, and the
+// router has to strip that prefix before matching routes — otherwise neither the
+// shell nor any deep link resolves. "/" is what a root deployment produces, and
+// React Router treats it as "no prefix".
+const routerBasename = import.meta.env.BASE_URL.replace(/\/$/, '') || '/';
+
+const routes: RouteObject[] = [
   {
     path: '/login',
     errorElement: <RouteErrorBoundary />,
@@ -132,7 +139,9 @@ const router = createBrowserRouter([
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },
-]);
+];
+
+const router = createBrowserRouter(routes, { basename: routerBasename });
 
 export default function App() {
   return (

@@ -45,6 +45,7 @@
   "scripts": {
     "dev": "pnpm --parallel --filter @custotal/frontend --filter @custotal/backend dev",
     "build": "pnpm --filter @custotal/frontend build",
+    "build:demo": "pnpm --filter @custotal/frontend build:demo",
     "preview": "pnpm --filter @custotal/frontend preview",
     "typecheck": "pnpm --filter @custotal/frontend typecheck && pnpm --filter @custotal/backend typecheck",
     "lint": "eslint .",
