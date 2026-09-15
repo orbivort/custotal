@@ -272,13 +272,17 @@ PowerShell, where `\` is not a line continuation.
 Both images are multi-stage and run as a non-root user with a container health
 check. Tagged builds publish them to the GitHub Container Registry
 (`ghcr.io/orbivort/custotal-backend`, `ghcr.io/orbivort/custotal-frontend`); set
-`CUSTOTAL_TAG` in `.env.docker` to pull a released version instead of building
-locally. The backend is published twice from one Dockerfile: the API image
-(production dependencies only) and the matching `<tag>-tools` variant that the
-one-shot `migrate` service uses — the only one shipping the Prisma CLI. The
-Compose stack runs production-parity images; use `pnpm dev` for live-reload
-development. See [Docker deployment](docs/self-hosting.md#docker) for
-configuration, migrations, backups, and upgrades.
+`CUSTOTAL_TAG=v1.0.0` in `.env.docker` to pull a released version instead of
+building locally (`v` included — images are tagged with the release ref). The
+backend is published twice from one Dockerfile: the API image (production
+dependencies only) and the matching `<tag>-tools` variant that the one-shot
+`migrate` service uses — the only one shipping the Prisma CLI. The two variants
+are released under the same version (`v1.0.0` and `v1.0.0-tools`), so a single
+`CUSTOTAL_TAG` pins the whole stack; only released tags are published, with no
+`latest` to float underneath a deployment. The Compose stack runs
+production-parity images; use `pnpm dev` for live-reload development. See
+[Docker deployment](docs/self-hosting.md#docker) for configuration, migrations,
+backups, and upgrades.
 
 Both images resolve their npm/pnpm packages from `https://registry.npmjs.org/`
 by default. To build through a mirror, set `NPM_REGISTRY` in `.env.docker` (used

@@ -9,6 +9,16 @@ applicable change types — `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`
 change type is omitted for releases that have no changes of that kind. Entries describe the effect
 on people who run and use Custotal, not the internal commit history.
 
+## [Unreleased]
+
+### Fixed
+
+- **Release images** — the release pipeline no longer publishes an implicit `latest` tag for the API
+  and SPA images. It was never derived for the `<tag>-tools` variant the `migrate` service pulls, so
+  pinning `CUSTOTAL_TAG=latest` gave a stack whose migration job had no image to resolve. Pin a
+  released version (`CUSTOTAL_TAG=v1.0.0`) instead; the published tags are listed in the Docker
+  deployment documentation.
+
 ## [1.0.0] - 2026-09-13
 
 Initial public release — Custotal is a self-hosted CRM that keeps your customer data in your
@@ -62,4 +72,5 @@ control.
   attestation, and the dependency-review workflow blocks newly introduced high-severity advisories
   and copyleft licenses.
 
+[Unreleased]: https://github.com/orbivort/custotal/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/orbivort/custotal/releases/tag/v1.0.0

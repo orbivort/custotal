@@ -96,7 +96,9 @@ export COMPOSE_ENV_FILES=.env.docker    # PowerShell: $env:COMPOSE_ENV_FILES = '
 `COOKIE_SECURE` must be `true` once TLS terminates in front of `web`, and `APP_PUBLIC_URL` /
 `CORS_ORIGINS` must be the exact public origin — invite/reset links and the CSRF origin check depend
 on them. Set `CUSTOTAL_TAG` to a released version to pull prebuilt images from the GitHub Container
-Registry instead of building locally.
+Registry instead of building locally. Keep the `v` (`CUSTOTAL_TAG=v1.0.0`): the pipeline tags images
+with the release ref as-is. Only released tags are published — there is no `latest` — so an upgrade
+is always an explicit version bump in `.env.docker` followed by `pnpm docker:pull`.
 
 ### Package registry mirror
 
@@ -152,7 +154,11 @@ The backend Dockerfile builds two targets and Compose uses both:
 
 Only the `runtime` image runs continuously, so only it is size-optimised; `tools` is pulled, used for a
 few seconds per upgrade, and can be dropped again with `docker image rm custotal-backend:<tag>-tools`.
-Released tags publish both (`v1.0.0` and `v1.0.0-tools`), so pin the pair together.
+Released versions publish every image under the same tag — `custotal-backend:v1.0.0`,
+`custotal-backend:v1.0.0-tools` and `custotal-frontend:v1.0.0` — so one `CUSTOTAL_TAG` pins the whole
+stack. Shorter aliases (`1.0.0`, `1.0`) are published too, but prefer the full release tag. There is
+deliberately no `latest`: the `-tools` variant is derived as `${CUSTOTAL_TAG}-tools`, so a floating
+tag could never resolve the `migrate` job's image.
 
 Because the API image ships no Prisma CLI, `RUN_MIGRATIONS=true` works on the `tools` image only: the
 API entrypoint detects the missing CLI, says so, and exits instead of serving an unmigrated database.

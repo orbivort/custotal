@@ -205,9 +205,10 @@ jobs:
             fi
             echo "- Publish pipeline: ${RUN_URL:-not started}"
             echo "- GitHub Release: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${TAG}"
-            echo "- Images: \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/custotal-backend:${TAG#v}\`,"
-            echo "  \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/custotal-backend:${TAG#v}-tools\`,"
-            echo "  \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/custotal-frontend:${TAG#v}\`"
+            echo "- Images: \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/custotal-backend:${TAG}\`,"
+            echo "  \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/custotal-backend:${TAG}-tools\`,"
+            echo "  \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/custotal-frontend:${TAG}\`"
+            echo "  (pin all three with \`CUSTOTAL_TAG=${TAG}\`; no \`latest\` is published)"
             echo
             echo "To recover from a failure, re-run this job: the tag step is idempotent and"
             echo "re-drives the publish pipeline."
