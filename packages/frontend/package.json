@@ -41,7 +41,7 @@
   "devDependencies": {
     "@playwright/test": "^1.56.1",
     "@tailwindcss/vite": "^4.3.3",
-    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "catalog:",
@@ -52,7 +52,7 @@
     "msw": "^2.7.0",
     "tailwindcss": "^4.3.3",
     "typescript": "catalog:",
-    "vite": "^8.2.2",
+    "vite": "^8.3.0",
     "vitest": "catalog:"
   }
 }
