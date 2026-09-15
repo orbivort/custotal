@@ -6,10 +6,9 @@ import { Field, Input, Select, Textarea } from '../../components/ui/Field';
 import { ErrorBanner, LoadingBlock } from '../../components/ui/Feedback';
 import { ArrowLeftIcon, PlusIcon, XIcon } from '../../components/icons';
 import { useMeta } from '../meta/MetaContext';
+import { isValidEmail } from '../../lib/validation';
 import { createContact, getContact, updateContact } from './contactsApi';
 import type { AccountLink } from '../../types/domain';
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface LinkRow {
   accountId: string;
@@ -113,7 +112,7 @@ export default function ContactFormPage() {
     const e: Record<string, string> = {};
     if (!form.firstName.trim()) e.firstName = 'First name is required.';
     if (!form.lastName.trim()) e.lastName = 'Last name is required.';
-    if (form.email.trim() && !EMAIL_RE.test(form.email.trim())) e.email = 'Invalid email format.';
+    if (form.email.trim() && !isValidEmail(form.email.trim())) e.email = 'Invalid email format.';
     if (!form.email.trim() && !form.phone.trim()) {
       e.phone = 'At least one of email or phone is required.';
     }

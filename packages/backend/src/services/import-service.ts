@@ -4,7 +4,7 @@
 import { prisma } from '../db.ts';
 import { errors } from '../lib/errors.ts';
 import {
-  EMAIL_RE,
+  isValidEmail,
   optionalString,
   CONTACT_IMPORT_FIELDS,
   ACCOUNT_IMPORT_FIELDS,
@@ -37,7 +37,7 @@ function validateContactRow(data: Record<string, string>): string[] {
   if (!cell(data, 'lastName')) reasons.push('Last name is required.');
   const email = cell(data, 'email');
   const phone = cell(data, 'phone');
-  if (email && !EMAIL_RE.test(email)) reasons.push('Invalid email format.');
+  if (email && !isValidEmail(email)) reasons.push('Invalid email format.');
   if (!email && !phone) reasons.push('At least one of email or phone is required.');
   const status = cell(data, 'status');
   if (status && status !== 'active' && status !== 'inactive') {

@@ -31,7 +31,7 @@ import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { loadEnvFile } from 'node:process';
-import { EMAIL_RE } from '../src/lib/validation.ts';
+import { isValidEmail } from '../src/lib/validation.ts';
 
 // Must match BCRYPT_ROUNDS in src/services/auth-service.ts so the credential this
 // script writes verifies identically at sign-in.
@@ -67,7 +67,7 @@ async function main(): Promise<void> {
   const suppliedPassword = process.env.ADMIN_PASSWORD ?? '';
 
   if (!email) fail('ADMIN_EMAIL is required (e.g. ADMIN_EMAIL=admin@example.com).');
-  if (!EMAIL_RE.test(email)) fail(`ADMIN_EMAIL "${email}" is not a valid email address.`);
+  if (!isValidEmail(email)) fail(`ADMIN_EMAIL "${email}" is not a valid email address.`);
   if (suppliedPassword && suppliedPassword.length < MIN_PASSWORD_LENGTH) {
     fail(`ADMIN_PASSWORD must be at least ${MIN_PASSWORD_LENGTH} characters.`);
   }

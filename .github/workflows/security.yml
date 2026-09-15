@@ -45,6 +45,10 @@ jobs:
           languages: javascript-typescript
           # Security-extended query suite for higher-severity coverage.
           queries: security-extended
+          # Reviewed suppressions (generated files, query false positives) with
+          # the reasoning for each; see the "CodeQL alert triage" section of
+          # packages/backend/docs/operations-notes.md.
+          config-file: ./.github/codeql/codeql-config.yml
       - uses: github/codeql-action/autobuild@v4
       - uses: github/codeql-action/analyze@v4
         with:

@@ -225,3 +225,97 @@ password. There is no database seed: demo/mock data lives with the frontend mock
 dataset (`packages/frontend/src/mocks`, enabled via `VITE_ENABLE_MOCKS`), while
 the backend integration/e2e suites build their own fixture
 (`packages/backend/test/fixtures/demo-workspace.ts`).
+
+## 9. CodeQL alert triage (September 2026)
+
+The `security-extended` CodeQL run (`.github/workflows/security.yml`) raised nine
+alerts against the v1.0.0 tree. Five were real and are fixed; four are recorded
+here because "fixing" them would break a documented flow or would weaken the
+signal elsewhere. Suppressions that are expressible in configuration live in
+`.github/codeql/codeql-config.yml`; the rest are dismissed per alert in the
+Security tab with the reason given below.
+
+### 9.1 Fixed — `js/polynomial-redos` (5 alerts, High)
+
+Reported at the five backend call sites that validated an email address
+(`auth-service` login, `admin-service` create/update user, `contact-service`
+validate, `import-service` dry run).
+
+The pattern was `^[^\s@]+@[^\s@]+\.[^\s@]+$`. The literal `.` separator is also
+matched by `[^\s@]`, so the classes overlap and the engine has many ways to split
+a candidate. With an invalid tail (many dots, no satisfying end) the match
+backtracks quadratically: measured at **~1.4 s for a 40 kB field**, and the CSV
+import endpoint accepts a **12 MB body**, so one request could block the event
+loop for minutes. The backend is single-instance (§1), so this was a real
+availability problem, not a theoretical one.
+
+Fixed in `src/lib/validation.ts`. `isValidEmail()` is now the single entry point
+and the ambiguous pattern is gone:
+
+- An `EMAIL_MAX_LENGTH` cap (254, the RFC 5321 mailbox limit) is applied first,
+  so an oversized field is rejected without any matching work at all.
+- The shape rules are explicit and linear: exactly one `@` with a non-empty,
+  whitespace-free local part, plus a domain of at least two non-empty labels split
+  on `.` (each label checked with a single-quantifier character class).
+- Replacing the pattern entirely also matters for tooling: "at least one dot in
+  the domain" can only be written as a repeated group (`(?:label\.)+label`), which
+  CodeQL _and_ ESLint's `security/detect-unsafe-regex` (which flagged the first,
+  otherwise linear, rewrite) both have to treat as ambiguous quantifiers.
+- Tightened (invalid addresses the loose pattern used to accept): a trailing dot
+  and an empty label (`a@b.`, `a@b..c`) are now rejected.
+- Pinned by `test/unit/lib/validation.test.ts` (including a hostile-input timing
+  assertion) and mirrored for contract parity in
+  `packages/frontend/src/lib/validation.ts`, used by the contact form and the MSW
+  handlers.
+
+### 9.2 Dismissed — `js/insufficient-password-hash` (High)
+
+`src/lib/tokens.ts:12` (`hashToken`, `createHash('sha256')`). SHA-256 is used
+here as a **lookup digest for opaque session/reset tokens**, not as a password
+KDF: the input is `randomBytes(32)` (256 bits of entropy), so there is no
+dictionary or offline search to slow down, and only the digest is stored — a
+database leak exposes no usable credential. A deliberately slow KDF would instead
+put a bcrypt/scrypt cost on **every authenticated request**, because
+`sessionLoader` re-hashes the cookie token on each call. Passwords themselves are
+hashed with bcrypt (`auth-service.hashPassword`, 10 rounds — §2).
+_Disposition_: dismiss as a false positive.
+
+### 9.3 Dismissed — `js/clear-text-logging` (High)
+
+`scripts/create-admin.ts:118` prints the generated temporary administrator
+password. That is the point of the script: it is an interactive operator tool
+(`db:create-admin`, §8) whose job is to hand the first credential to the person
+running it. The value is printed **once**, the account is created with
+`mustChangePassword = true`, and the operator is told to share it out of band and
+clear their shell history. The application itself never logs credentials (§5,
+`admin-service` returns the temporary password in the HTTP response only, and
+`admin-service.test.ts` pins that no temporary password reaches the logger), and
+the terminal output of a local/`docker compose exec` invocation is not captured
+by the container log driver.
+_Disposition_: dismiss as "won't fix" (accepted risk). Revisit if the bootstrap
+ever stops being an interactive operator step.
+
+### 9.4 Suppressed — `js/missing-token-validation` (High)
+
+`src/app.ts:61` (`cookieParser`). False positive: the query only models sessions
+guarded by a package it knows (csurf/lusca). Custotal mounts its own
+`csrfProtection` middleware (`src/middleware/csrf.ts`) **before** the routers,
+which rejects state-changing requests whose `Origin`/`Referer` is neither the
+request host nor a `CORS_ORIGINS` entry, and the session cookie is `SameSite=Lax`
+(§6). `csurf` is unmaintained, so satisfying the query literally would mean
+shipping a dead dependency. The mitigation is pinned by
+`test/unit/middleware/csrf.test.ts` and `test/integration/api/csrf.test.ts`.
+_Disposition_: rule excluded in `.github/codeql/codeql-config.yml`, with an
+explicit "re-enable this rule if `csrf.ts` is removed or unmounted" instruction.
+
+### 9.5 Suppressed — `js/missing-origin-check` (Medium)
+
+`packages/frontend/public/mockServiceWorker.js:23`. The file is generated by
+`npx msw init` and says "Please do NOT modify this file"; it is re-generated on
+every MSW upgrade, so an in-file fix would be lost. It is development-only
+tooling — the worker is registered only under `import.meta.env.DEV`
+(`src/main.tsx` → `src/mocks/browser.ts`) and is never registered in a deployed
+build. Its `message` listener also only ever hears from same-origin documents in
+its own scope, which are trusted by definition.
+_Disposition_: path ignored in `.github/codeql/codeql-config.yml` (file-scoped:
+no signal lost for the rest of the codebase).

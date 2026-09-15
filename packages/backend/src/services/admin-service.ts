@@ -6,7 +6,7 @@ import { env } from '../config.ts';
 import { logger } from '../logger.ts';
 import { errors, type FieldError } from '../lib/errors.ts';
 import { ALL_ROLES } from '../lib/rbac.ts';
-import { EMAIL_RE, optionalString, STAGE_CLASSIFICATIONS } from '../lib/validation.ts';
+import { isValidEmail, optionalString, STAGE_CLASSIFICATIONS } from '../lib/validation.ts';
 import { hashToken, generateToken } from '../lib/tokens.ts';
 import { authLinkUrl, hashPassword } from './auth-service.ts';
 import { SOFT_DELETE_RETENTION_DAYS } from './purge-service.ts';
@@ -55,7 +55,7 @@ export async function createUser(input: {
   const email = typeof input.email === 'string' ? input.email.trim().toLowerCase() : '';
   const role = (input.role as Role | undefined) ?? 'rep';
   if (!name) details.push({ field: 'name', message: 'Full name is required.' });
-  if (!EMAIL_RE.test(email)) details.push({ field: 'email', message: 'Invalid email format.' });
+  if (!isValidEmail(email)) details.push({ field: 'email', message: 'Invalid email format.' });
   else if (await prisma.user.findUnique({ where: { email } })) {
     details.push({ field: 'email', message: 'A user with this email already exists.' });
   }
@@ -125,7 +125,7 @@ export async function updateUser(
   }
   if (input.email !== undefined) {
     const email = typeof input.email === 'string' ? input.email.trim().toLowerCase() : '';
-    if (!EMAIL_RE.test(email)) details.push({ field: 'email', message: 'Invalid email format.' });
+    if (!isValidEmail(email)) details.push({ field: 'email', message: 'Invalid email format.' });
     else if (await prisma.user.findFirst({ where: { email, id: { not: id } } })) {
       details.push({ field: 'email', message: 'A user with this email already exists.' });
     } else next.email = email;

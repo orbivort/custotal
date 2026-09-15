@@ -67,7 +67,10 @@ security headers, and no PII in production logs.
 
 ## Automated scanning
 
-- **CodeQL** (security-extended) on every push and pull request, plus weekly.
+- **CodeQL** (security-extended) on every push and pull request, plus weekly. The
+  evaluated alerts — fixed, and the few reviewed false positives suppressed in
+  `.github/codeql/codeql-config.yml` — are recorded in
+  `packages/backend/docs/operations-notes.md` (§9).
 - **Dependency review** on pull requests — fails on high-severity advisories and GPL/AGPL-family
   licenses.
 - **`pnpm audit`** weekly on the full lockfile.

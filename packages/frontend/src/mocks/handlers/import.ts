@@ -9,10 +9,9 @@ import type {
   ImportEntity,
   ImportMappingTemplate,
 } from '../../types/domain';
+import { isValidEmail } from '../../lib/validation';
 import { getDB, persist } from '../db/store';
 import { adminGate, err, genId, json, nowISO } from './helpers';
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const CONTACT_IMPORT_FIELDS = [
   'firstName',
@@ -75,7 +74,7 @@ function validateContactRow(data: Record<string, string>): string[] {
   if (!cell(data, 'lastName')) reasons.push('Last name is required.');
   const email = cell(data, 'email');
   const phone = cell(data, 'phone');
-  if (email && !EMAIL_RE.test(email)) reasons.push('Invalid email format.');
+  if (email && !isValidEmail(email)) reasons.push('Invalid email format.');
   if (!email && !phone) reasons.push('At least one of email or phone is required.');
   const status = cell(data, 'status');
   if (status && status !== 'active' && status !== 'inactive') {

@@ -1,13 +1,12 @@
 import { http } from 'msw';
 import type { AccountLink, Contact } from '../../types/domain';
+import { isValidEmail } from '../../lib/validation';
 import { getDB, persist } from '../db/store';
 import { canEdit, err, genId, json, nowISO, requireUser } from './helpers';
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 function validateContact(body: Partial<Contact>): { field: string; message: string }[] {
   const details: { field: string; message: string }[] = [];
-  if (body.email && !EMAIL_RE.test(body.email)) {
+  if (body.email && !isValidEmail(body.email)) {
     details.push({ field: 'email', message: 'Invalid email format.' });
   }
   if (!body.email && !body.phone) {
