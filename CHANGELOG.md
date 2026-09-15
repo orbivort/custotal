@@ -11,13 +11,11 @@ on people who run and use Custotal, not the internal commit history.
 
 ## [Unreleased]
 
-### Fixed
+### Security
 
-- **Release images** — the release pipeline no longer publishes an implicit `latest` tag for the API
-  and SPA images. It was never derived for the `<tag>-tools` variant the `migrate` service pulls, so
-  pinning `CUSTOTAL_TAG=latest` gave a stack whose migration job had no image to resolve. Pin a
-  released version (`CUSTOTAL_TAG=v1.0.0`) instead; the published tags are listed in the Docker
-  deployment documentation.
+- **Email validation hardening** — an email address is now checked with a linear-time validator that
+  caps the field at the RFC 5321 maximum (254 characters) before any matching, instead of a pattern
+  that backtracked.
 
 ## [1.0.0] - 2026-09-13
 
