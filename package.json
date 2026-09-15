@@ -1,7 +1,7 @@
 {
   "name": "custotal",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Self-hosted CRM for small sales teams — your customer data stays in your own PostgreSQL database.",
   "license": "Apache-2.0",
   "author": "Orbivort",
