@@ -12,7 +12,9 @@ export const backendCoverage: CoverageOptions = {
   provider: 'v8',
   include: ['src/**/*.ts'],
   exclude: [...(configDefaults.coverage.exclude ?? []), '**/*.d.ts'],
-  reporter: ['text', 'html'],
+  // `lcov` produces coverage/lcov.info, the format Codecov ingests in CI
+  // (see .github/workflows/ci.yml).
+  reporter: ['text', 'html', 'lcov'],
   // Fail the run when coverage drops below the agreed floor. Applied per tier
   // config, so the aggregated run (all three tiers) is what must clear 85%.
   thresholds: {

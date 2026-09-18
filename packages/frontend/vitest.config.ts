@@ -36,7 +36,9 @@ export default defineConfig({
         '**/src/test/**',
         '**/src/mocks/**',
       ],
-      reporter: ['text', 'html'],
+      // `lcov` produces coverage/lcov.info, the format Codecov ingests in CI
+      // (see .github/workflows/ci.yml).
+      reporter: ['text', 'html', 'lcov'],
       // Fail the run when coverage drops below the agreed floor.
       thresholds: {
         lines: 85,

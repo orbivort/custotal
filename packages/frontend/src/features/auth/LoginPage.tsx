@@ -115,9 +115,7 @@ export default function LoginPage() {
   // and a 26px name sitting directly above a 26px "Welcome back" read as two
   // competing titles with no hierarchy between them. At text-19 the name reads
   // as the imprint on the letterhead and the page keeps one display line.
-  const wordmark = (
-    <BrandLockup size={64} tile orientation="stacked" wordmarkClassName="text-19" />
-  );
+  const wordmark = <BrandLockup size={64} tile orientation="stacked" wordmarkClassName="text-19" />;
 
   if (status.state === 'loading') {
     return (
