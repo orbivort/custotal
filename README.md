@@ -1,14 +1,18 @@
 # Custotal
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![CI](https://github.com/orbivort/custotal/actions/workflows/ci.yml/badge.svg)](https://github.com/orbivort/custotal/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/orbivort/custotal?sort=semver&display_name=tag&style=flat-square)](https://github.com/orbivort/custotal/releases/latest)
+[![CI](https://github.com/orbivort/custotal/actions/workflows/ci.yml/badge.svg)](https://github.com/orbivort/custotal/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/github/orbivort/custotal/graph/badge.svg)](https://codecov.io/github/orbivort/custotal)
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white&style=flat-square)](./tsconfig.base.json)
 [![Node.js](https://img.shields.io/badge/Node.js-%5E24-339933?logo=nodedotjs&logoColor=white&style=flat-square)](#requirements)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18+-336791.svg)](https://www.postgresql.org/)
 
 **Your customer data, in your custody.**
+
+**[Live demo →](https://orbivort.github.io/custotal)** — the full interface on
+seeded demo data, no install and no backend required.
 
 Custotal is a self-hosted CRM that a small sales team can actually run: one API
 process, one PostgreSQL database, one Compose file — and no third party holding
@@ -33,6 +37,7 @@ access control.
 
 - [Why Custotal](#why-custotal)
 - [Features](#features)
+- [Live demo](#live-demo)
 - [Architecture at a glance](#architecture-at-a-glance)
 - [Tech stack](#tech-stack)
 - [Requirements](#requirements)
@@ -117,6 +122,33 @@ read end to end, run on one box, and walk away from without asking permission.
 - **Operations** — structured logs, `/health` probes, rate limiting, backup and
   purge scripts, and a documented restore runbook, so an operator can run this
   without paging a maintainer.
+
+## Live demo
+
+**[orbivort.github.io/custotal](https://orbivort.github.io/custotal)** — the full
+interface on a seeded mock workspace, with no clone, database, or sign-up. The
+sign-in form arrives prefilled with the demo administrator, so the whole app is
+one click away. The seeded accounts below share the password `demo1234` and show
+how the same workspace is scoped by role:
+
+| Account             | Role      | What it shows                     |
+| ------------------- | --------- | --------------------------------- |
+| `admin@example.com` | Admin     | Everything, including admin pages |
+| `dana@example.com`  | Manager   | Team-wide visibility              |
+| `alex@example.com`  | Rep       | Only their own book               |
+| `riley@example.com` | Read-only | No create or edit actions         |
+
+Two things to know, so the demo is not mistaken for a deployment:
+
+- **There is no backend.** Mock Service Worker answers every `/api` call in the
+  browser and keeps the dataset in `localStorage`: nothing leaves the tab, and
+  your changes stay local until you clear site data.
+- **It is generated from this source rather than maintained by hand.**
+  `pnpm build:demo` produces the bundle (see [Commands](#commands)), and
+  [`.github/workflows/pages.yml`](.github/workflows/pages.yml) asserts the mock
+  dataset is present before publishing. The opposite check — that `pnpm build`
+  leaves the mock graph out of a production bundle — is documented in
+  [Frontend API integration](packages/frontend/docs/api-integration.md).
 
 ## Architecture at a glance
 
@@ -231,10 +263,12 @@ To try the UI **without a database**, set `VITE_ENABLE_MOCKS=true` in
 seeded demo workspace in development only. It is never active outside the Vite
 dev server, and the flag must not be `true` in a production build.
 
-The same demo is available as a standalone static site: `pnpm build:demo`
-produces the bundle published to GitHub Pages by
-[`.github/workflows/pages.yml`](.github/workflows/pages.yml). That build boots the
-mock workspace on purpose — the site it produces has no backend behind it.
+The same demo is already published standalone at
+<https://orbivort.github.io/custotal> — see [Live demo](#live-demo). To build it
+locally instead, `pnpm build:demo` produces the bundle that
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml) deploys; that build
+boots the mock workspace on purpose, because the site it produces has no backend
+behind it.
 
 For a production deployment, see [`docs/self-hosting.md`](docs/self-hosting.md).
 
@@ -391,6 +425,7 @@ allowed to import the HTTP client or write `/api/...` paths.
 
 ## Documentation
 
+- [User guide](docs/user-guide.md) — how to use Custotal day to day, for business users.
 - [Architecture](docs/architecture.md) — how the backend and frontend fit together.
 - [Self-hosting](docs/self-hosting.md) — configuration, deployment, backups, and upgrades.
 - [API reference](docs/api.md) — REST endpoints and the error envelope.
@@ -456,8 +491,9 @@ timer, so a second replica multiplies the effective limits and races the purge.
 See [operations notes §1](packages/backend/docs/operations-notes.md).
 
 **Can I evaluate the UI without installing PostgreSQL?**
-Yes — set `VITE_ENABLE_MOCKS=true` and run `pnpm dev`. You still need a clone and
-`pnpm install`, but no database.
+Yes. The fastest path is the [live demo](https://orbivort.github.io/custotal),
+which needs no clone at all. To run it locally, set `VITE_ENABLE_MOCKS=true` and
+run `pnpm dev`: you still need a clone and `pnpm install`, but no database.
 
 **How do I restore from a backup?**
 Follow the [restore procedure](packages/backend/docs/restore-procedure.md). The

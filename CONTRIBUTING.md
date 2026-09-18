@@ -126,6 +126,49 @@ with a regression test.
 Reviewers aim to respond within a few business days. Please keep pull requests focused — one logical
 change per pull request is easier to review and land.
 
+## Release process
+
+Releases are cut by two workflows that hand off to a third, so a release is a reviewable pull request
+rather than a command run on someone's laptop:
+
+1. **Prepare** — a maintainer dispatches
+   [`Release: prepare`](.github/workflows/release-prepare.yml) with the next SemVer version (for
+   example `1.1.0`). It refuses a version whose tag already exists, rewrites `version` in
+   `package.json`, `packages/backend/package.json` and `packages/frontend/package.json`, drafts a
+   Keep a Changelog entry from the Conventional Commits merged since the previous release tag, pushes
+   `release/vX.Y.Z`, and opens a `chore(release): vX.Y.Z` pull request. Notes already staged under
+   `## [Unreleased]` in `CHANGELOG.md` are drained into the new entry, so hand-written prose survives.
+2. **Review and merge** — edit the changelog on the pull request branch, then merge. **Merging is the
+   approval**: nothing is tagged or published before that point.
+3. **Finalize and publish** — the merged pull request triggers
+   [`Release: finalize`](.github/workflows/release-finalize.yml), which verifies that the merged
+   tree really carries the requested version and a matching `## [X.Y.Z]` changelog section, tags the
+   merge commit with an annotated `vX.Y.Z`, and drives the
+   [`Release`](.github/workflows/release.yml) workflow. That publishes the GitHub Release with notes
+   extracted from `CHANGELOG.md` and pushes the `custotal-backend`,
+   `custotal-backend:<tag>-tools` and `custotal-frontend` images to GHCR.
+
+A release branch is validated by its own CI run, which starts when the pull request opens and re-runs
+on every commit pushed to `release/vX.Y.Z`. Because that pull request is authored by a bot, GitHub
+holds its CI and Security runs until a maintainer approves them, so approve each held run as part of
+the review. Tagging does not wait for the merge commit's own CI run either: a clean merge changes no
+content, so the tagged tree is the one the pull request already validated.
+
+Changes to the release tooling (`.github/workflows/`) go through a pull request like any other change.
+Pushing them straight to `main` skips review and the `dependency-review` job, which only runs on pull
+requests.
+
+Recovering from a partial or failed release:
+
+- **A failed publish**, such as a failed image build: re-run `Release: finalize`. It is idempotent — an
+  existing tag is verified against the merge commit instead of being recreated — and re-drives the
+  publish pipeline.
+- **A bad draft, or a version that was never merged**: dispatch `Release: prepare` again with the same
+  version to rebuild the branch and refresh the pull request. That rebuilds the branch from `base`, so
+  edit only through the pull request.
+- **Republishing an existing tag**: dispatch the `Release` workflow against the tag — select the tag in
+  the "Use workflow from" dropdown, or run `gh workflow run release.yml --ref vX.Y.Z -f tag=vX.Y.Z`.
+
 ## Reporting security issues
 
 Do not open a public issue. Follow [SECURITY.md](SECURITY.md).

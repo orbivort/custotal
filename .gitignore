@@ -39,6 +39,10 @@ temp/
 AGENTS.md
 CODEBUDDY.md
 openspec/
+.agents
+.claude
+.windsurf
+skills-lock.json
 
 # ---- Backups and database dumps --------------------------------------------
 backups/

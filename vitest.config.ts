@@ -37,7 +37,10 @@ export default defineConfig({
         // Frontend test bootstrap, not application code.
         '**/src/test/**',
       ],
-      reporter: ['text', 'html'],
+      // `lcov` produces coverage/lcov.info, the format Codecov ingests in CI
+      // (see .github/workflows/ci.yml); `text` is the console summary and
+      // `html` the browsable local report.
+      reporter: ['text', 'html', 'lcov'],
       // Whole-workspace floor, applied when running coverage across every
       // project (e.g. `pnpm test:coverage`). Package-scoped runs enforce the
       // same thresholds via their own configs.

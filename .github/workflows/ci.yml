@@ -10,7 +10,9 @@
 #   docker      — builds both container images and smoke-tests them
 #
 # Coverage is collected on the integration job because it exercises the most
-# source surface.
+# source surface. That job also uploads the resulting lcov report to Codecov
+# (flag `backend`) using the CODECOV_TOKEN repository secret; the upload is
+# non-blocking, so a Codecov outage never fails an otherwise-green build.
 #
 # Security posture:
 #   - Least-privilege GITHUB_TOKEN (contents: read) for every job.
@@ -21,10 +23,16 @@ on:
   push:
     branches: [main]
   pull_request:
-  # Dispatchable so release-prepare.yml can run the pipeline against a release
-  # branch. A pull request opened with GITHUB_TOKEN emits no `pull_request`
-  # event, so the release pull request would otherwise carry no checks at all —
-  # including the checks branch protection requires.
+  # Dispatchable for manual runs only — to re-report checks after a cancelled
+  # run, for example. The release flow does not use it: a release pull request is
+  # validated by its own `pull_request` run, which starts when it opens and
+  # re-runs on every push to `release/vX.Y.Z`.
+  #
+  # Because that pull request is authored by `github-actions[bot]`, GitHub holds
+  # its runs at `action_required` until a maintainer approves them. That was
+  # observed on both the CI and Security runs of the v1.0.1 release pull request,
+  # which were approved about a minute after they were queued. Approving them is
+  # part of the review, not an extra gate.
   workflow_dispatch:
 
 concurrency:
@@ -124,6 +132,24 @@ jobs:
           # silently — a silent skip is how this path drifted unnoticed.
           if-no-files-found: error
           retention-days: 7
+
+      - name: Upload coverage to Codecov
+        # Codecov is reporting, not a gate: `fail_ci_if_error: false` keeps an
+        # upload rejection or a Codecov outage from failing a green build. The
+        # step still runs when the test step failed (!cancelled()) so the
+        # partial report is not lost, and it is a no-op on fork pull requests,
+        # where repository secrets (CODECOV_TOKEN) are not exposed.
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          # Emitted by the `lcov` reporter in the Vitest coverage blocks. The
+          # backend `test:coverage` script runs Vitest from the workspace root,
+          # so the report lands in the root `coverage/` directory.
+          files: coverage/lcov.info
+          flags: backend
+          name: backend
+          fail_ci_if_error: false
 
   e2e:
     name: E2E smoke (real server)

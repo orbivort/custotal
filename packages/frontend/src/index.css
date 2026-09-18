@@ -103,6 +103,13 @@
   --color-warn: #7d6234;
   --color-info: #215f74;
 
+  /* The brass `warn` step is tuned for warm paper: it measures 5.1:1 there,
+     but only 1.9:1 on the navy plate, where it reads as a smudge rather than
+     a seal. `brass-light` is the same hue lifted for dark grounds. It is the
+     brand mark's seal colour on a navy plate or any future dark surface, and
+     it is never used for text — on paper it falls to 2.2:1. */
+  --color-brass-light: #c8a05a;
+
   /* =======================================================================
      7. OVERLAY & CHROME
      Kept out of component code so the scrim and the scrollbar can be retuned

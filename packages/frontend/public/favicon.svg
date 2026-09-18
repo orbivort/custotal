@@ -1,0 +1,18 @@
+<!--
+  Custotal app icon.
+
+  This is the *compact* step of the mark, deliberately not a scaled copy of the
+  full one. A browser tab renders an SVG favicon at roughly 16px, where the
+  seal's 2.5-unit clearances round to under 1.5 device px and the counter fills
+  in; the bracket alone stays legible there. The full mark (with the seal) is
+  what belongs in the 180px+ raster tiles — apple-touch-icon and the maskable
+  PWA icon — which are still to be generated from the component in
+  src/components/BrandMark.tsx.
+
+  Colours are inlined rather than referenced: this file is served outside the
+  app's stylesheet and has no access to the @theme tokens.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Custotal">
+  <rect width="32" height="32" rx="7" fill="#1f3f66" />
+  <path d="M4 4H22L28 10H10V22H28L22 28H4Z" fill="#f4f3ef" />
+</svg>

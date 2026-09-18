@@ -11,6 +11,7 @@ import {
   UsersIcon,
   XIcon,
 } from './icons';
+import { BrandLockup } from './BrandMark';
 
 /** Section eyebrow above a nav group. Visually hidden while the rail is collapsed. */
 const GROUP_LABEL =
@@ -43,18 +44,15 @@ const reportNav = [
 ];
 
 function Wordmark({ collapsed }: { collapsed: boolean }) {
+  // Collapsed, the plated mark alone carries the brand; the wordmark stays in
+  // the accessible tree so the shell keeps a labelled home. The drawer is never
+  // collapsed, so the label is only dropped from `lg` up.
   return (
-    <div className="flex items-center gap-2.5">
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-forest text-paper">
-        <span className="font-display text-base font-semibold leading-none">C</span>
-      </span>
-      {/* Collapsed, the "C" plate alone carries the brand; the wordmark stays in
-          the accessible tree so the shell keeps a labelled home. The drawer is
-          never collapsed, so the label is only dropped from `lg` up. */}
-      <div className={cn('leading-tight', collapsed && 'lg:sr-only')}>
-        <div className="font-display text-19 font-semibold tracking-tight text-ink">Custotal</div>
-      </div>
-    </div>
+    <BrandLockup
+      size={32}
+      tile
+      wordmarkClassName={cn('leading-tight', collapsed && 'lg:sr-only')}
+    />
   );
 }
 

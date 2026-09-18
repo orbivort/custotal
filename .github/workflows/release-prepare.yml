@@ -12,6 +12,11 @@
 #      carrying both, so maintainers review and edit the changelog through the
 #      normal GitHub review flow.
 #
+# The pull request is validated by its own CI run; nothing is dispatched from
+# here. GitHub holds that run at `action_required` until a maintainer approves
+# it, because the pull request is authored by the bot, so approving the held CI
+# and Security runs is part of the review.
+#
 # Nothing is tagged or published here: merging the pull request is the
 # approval, and release-finalize.yml performs the release.
 #
@@ -56,7 +61,6 @@ jobs:
     permissions:
       contents: write # push the release branch
       pull-requests: write # open / refresh the release pull request
-      actions: write # dispatch CI against the release branch (see below)
     steps:
       - name: Validate the requested version
         id: version
@@ -453,7 +457,8 @@ jobs:
           - [ ] The changelog entry is accurate and readable. Edit \`CHANGELOG.md\` directly on this
                 branch before merging.
           - [ ] The version follows SemVer for the changes included.
-          - [ ] Required status checks are green.
+          - [ ] Required status checks are green — approve the held CI and Security runs so they
+                can report.
 
           ### What happens on merge
 
@@ -575,22 +580,6 @@ jobs:
           echo "url=${url}" >> "$GITHUB_OUTPUT"
           echo "Pull request: ${url}"
 
-      - name: Start CI on the release branch
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH: ${{ steps.branch.outputs.name }}
-        run: |
-          set -euo pipefail
-          # A pull request opened with GITHUB_TOKEN does not emit a
-          # `pull_request` event — the same recursion guard that makes
-          # release-finalize.yml dispatch the Release workflow explicitly — so
-          # ci.yml would never run on this pull request and its status checks
-          # would stay "Expected". Dispatch the pipeline against the branch
-          # instead: the check runs land on the branch head, which is the commit
-          # branch protection evaluates.
-          gh workflow run ci.yml --ref "${BRANCH}"
-          echo "::notice::Dispatched CI for ${BRANCH}; watch it with 'gh run list --branch ${BRANCH}'."
-
       - name: Summarize
         if: always()
         env:
@@ -603,7 +592,8 @@ jobs:
             echo
             echo "- Changelog range: \`${PREVIOUS_TAG}..${{ inputs.base }}\`"
             echo "- Pull request: ${PR_URL:-not created}"
-            echo "- CI: dispatched against \`release/${TAG}\`; the pull request's checks report there."
+            echo "- CI: runs on the release pull request. It is held for approval (the pull request"
+            echo "  is bot-authored); approve it so the checks report."
             echo
             echo "Merging the pull request runs **Release: finalize**, which tags \`${TAG}\` and"
             echo "dispatches the Release workflow (GitHub Release + container images)."
