@@ -8,6 +8,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { Button } from '../../components/ui/Button';
 import { Field, Input } from '../../components/ui/Field';
 import { ErrorBanner, Spinner } from '../../components/ui/Feedback';
+import { BrandLockup } from '../../components/BrandMark';
 import { EyeIcon, EyeOffIcon } from '../../components/icons';
 import { ApiError } from '../../lib/api';
 import { acceptInvitation, confirmPasswordReset } from './authApi';
@@ -89,14 +90,10 @@ export default function SetPasswordPage({ mode }: { mode: Mode }) {
   return (
     <div className="grid min-h-screen place-items-center p-4 supports-[height:1dvh]:min-h-dvh sm:p-6">
       <div className="w-full max-w-sm animate-fade-up">
-        <div className="flex items-center justify-center gap-2.5">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-forest text-paper">
-            <span className="font-display text-base font-semibold">C</span>
-          </span>
-          <span className="font-display text-lg font-semibold tracking-tight text-ink">
-            Custotal
-          </span>
-        </div>
+        {/* Invite and reset are transactional screens reached from a link rather
+            than the product's front door, so the lockup stays horizontal and
+            steps one size down from the sign-in hero instead of repeating it. */}
+        <BrandLockup size={40} tile className="justify-center" />
 
         <div className="mt-7 text-center">
           <h1 className="font-display text-26 font-semibold tracking-tight text-ink">

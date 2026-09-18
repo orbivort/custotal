@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { Button } from '../../components/ui/Button';
 import { Field, Input } from '../../components/ui/Field';
 import { ErrorBanner, Spinner } from '../../components/ui/Feedback';
+import { BrandLockup } from '../../components/BrandMark';
 import { EyeIcon, EyeOffIcon, ServerIcon } from '../../components/icons';
 import { env } from '../../config/env';
 import { ApiError } from '../../lib/api';
@@ -104,13 +105,18 @@ export default function LoginPage() {
       .finally(() => setSubmitting(false));
   }
 
+  // Sign-in is the one surface where the brand leads the page rather than
+  // labelling it, so the mark runs at hero size above the wordmark instead of
+  // in the 32px side-by-side form the shell's rail uses. The plate carries its
+  // own contrast, which keeps the lockup independent of the page background.
+  //
+  // The wordmark is deliberately stepped below the h1 instead of inheriting the
+  // lockup's 26px hero step: the mark is what carries the brand at this size,
+  // and a 26px name sitting directly above a 26px "Welcome back" read as two
+  // competing titles with no hierarchy between them. At text-19 the name reads
+  // as the imprint on the letterhead and the page keeps one display line.
   const wordmark = (
-    <div className="flex items-center justify-center gap-2.5">
-      <span className="flex size-8 items-center justify-center rounded-lg bg-forest text-paper">
-        <span className="font-display text-base font-semibold">C</span>
-      </span>
-      <span className="font-display text-lg font-semibold tracking-tight text-ink">Custotal</span>
-    </div>
+    <BrandLockup size={64} tile orientation="stacked" wordmarkClassName="text-19" />
   );
 
   if (status.state === 'loading') {
@@ -175,7 +181,9 @@ export default function LoginPage() {
           <h1 className="font-display text-26 font-semibold tracking-tight text-ink">
             Welcome back
           </h1>
-          <p className="mt-2.5 text-15 text-ink-muted">Sign in to Custotal</p>
+          {/* The lockup above already names the product, so the supporting line
+              states the task rather than repeating the brand. */}
+          <p className="mt-2.5 text-15 text-ink-muted">Sign in to your workspace</p>
         </div>
 
         {passwordChanged ? (
