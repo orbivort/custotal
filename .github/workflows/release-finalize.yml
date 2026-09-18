@@ -15,6 +15,14 @@
 # to still point at the merge commit and the publish pipeline is driven again,
 # so a failed image build (or any partial run) is fixed by re-running this job.
 #
+# Tagging is deliberately *not* gated on the `push` CI run that the merge commit
+# starts. A clean merge changes no content, so the tagged tree is the one the
+# release pull request already validated: its own `pull_request` run covers every
+# commit pushed to `release/vX.Y.Z` before the merge. Waiting would add minutes to
+# every release to re-test the same tree. Revisit this if unreviewed commits start
+# landing directly on `main`, because the merge commit would then stop being a
+# reviewed tree.
+#
 # `pull_request` is used deliberately rather than `pull_request_target`: release
 # pull requests always come from a branch in this repository, so the job gets a
 # write token without ever executing anything from a fork.
@@ -84,6 +92,8 @@ jobs:
           # The branch name is the only thing that told us the version, so
           # confirm the merge actually carried the matching bump before tagging
           # anything: a mis-named branch must not produce a mislabelled release.
+          # Neither check below waits on the merge commit's own CI run; that is
+          # a deliberate trade-off, documented in the header.
           node --input-type=module -e '
             import { readFileSync } from "node:fs";
             const expected = process.env.EXPECTED_VERSION;

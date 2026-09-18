@@ -23,10 +23,16 @@ on:
   push:
     branches: [main]
   pull_request:
-  # Dispatchable so release-prepare.yml can run the pipeline against a release
-  # branch. A pull request opened with GITHUB_TOKEN emits no `pull_request`
-  # event, so the release pull request would otherwise carry no checks at all —
-  # including the checks branch protection requires.
+  # Dispatchable for manual runs only — to re-report checks after a cancelled
+  # run, for example. The release flow does not use it: a release pull request is
+  # validated by its own `pull_request` run, which starts when it opens and
+  # re-runs on every push to `release/vX.Y.Z`.
+  #
+  # Because that pull request is authored by `github-actions[bot]`, GitHub holds
+  # its runs at `action_required` until a maintainer approves them. That was
+  # observed on both the CI and Security runs of the v1.0.1 release pull request,
+  # which were approved about a minute after they were queued. Approving them is
+  # part of the review, not an extra gate.
   workflow_dispatch:
 
 concurrency:
