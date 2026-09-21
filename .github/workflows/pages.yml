@@ -55,9 +55,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v5 # reads packageManager from package.json
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6 # reads packageManager from package.json
+      - uses: actions/setup-node@v7
         with:
           node-version-file: '.nvmrc'
           cache: 'pnpm'
@@ -66,7 +66,7 @@ jobs:
       # build, which derives VITE_BASE_PATH from the `base_path` output.
       - name: Setup Pages
         id: pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       # Only the frontend's dependency subtree: the demo build pulls in no
       # backend code, so the Prisma client never has to be generated here.
@@ -108,7 +108,7 @@ jobs:
         run: touch packages/frontend/dist/.nojekyll
 
       - name: Upload the Pages artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: packages/frontend/dist
           # `.nojekyll` is a dotfile, and dotfiles are excluded by default.
@@ -131,4 +131,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
