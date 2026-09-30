@@ -9,7 +9,7 @@ applicable change types — `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`
 change type is omitted for releases that have no changes of that kind. Entries describe the effect
 on people who run and use Custotal, not the internal commit history.
 
-## [Unreleased]
+## [1.0.2] - 2026-09-30
 
 ### Security
 
@@ -104,6 +104,7 @@ control.
   attestation, and the dependency-review workflow blocks newly introduced high-severity advisories
   and copyleft licenses.
 
-[Unreleased]: https://github.com/orbivort/custotal/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/orbivort/custotal/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/orbivort/custotal/releases/tag/v1.0.2
 [1.0.1]: https://github.com/orbivort/custotal/releases/tag/v1.0.1
 [1.0.0]: https://github.com/orbivort/custotal/releases/tag/v1.0.0
