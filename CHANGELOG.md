@@ -11,6 +11,24 @@ on people who run and use Custotal, not the internal commit history.
 
 ## [Unreleased]
 
+### Security
+
+- Remediate **5** dependency vulnerabilities (**2 high**, **3 moderate** severity):
+  - `ip-address` 10.7.0 → 10.7.2 — fixes `isInSubnet()` and `isHostInSubnet()` comparing addresses of
+    different families as though they shared one address space, which lets an allowlist check admit an
+    address outside its range
+    ([GHSA-j6r3-76f7-8jcv](https://github.com/advisories/GHSA-j6r3-76f7-8jcv)), and an `Address6` parse
+    diagnostic that grows with the input with no length bound, allowing a single long string to stall
+    the process
+    ([GHSA-h3mg-xc3c-68pw](https://github.com/advisories/GHSA-h3mg-xc3c-68pw))
+  - `fast-uri` 3.1.6 → 3.1.8 — fixes malformed URI authority handling: an unvalidated port in
+    `serialize` that enables authority injection
+    ([GHSA-qw65-cvwx-89v3](https://github.com/advisories/GHSA-qw65-cvwx-89v3)), an unclosed bracket in
+    the URI authority that causes host confusion
+    ([GHSA-58mr-gqgx-xq4g](https://github.com/advisories/GHSA-58mr-gqgx-xq4g)), and percent-encoded
+    octets that evade host case normalization
+    ([GHSA-hrr3-gc8f-f4qj](https://github.com/advisories/GHSA-hrr3-gc8f-f4qj))
+
 ## [1.0.1] - 2026-09-15
 
 ### Security

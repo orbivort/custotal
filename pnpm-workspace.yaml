@@ -51,8 +51,12 @@ minimumReleaseAgeExclude:
 # in 8.0.0). The override is safe: @prisma/config only merges plain
 # objects/arrays. Remove once Prisma depends on deepmerge-ts >= 8.
 #
-# The remaining overrides below patch advisories that no upstream release
-# fixes yet (all four are dev/transitive paths; see log.txt evaluation).
+# The remaining overrides below pin patched transitive dependencies. In each
+# case the parent's range already admits the fix but the tree had resolved to
+# the vulnerable version, so the override is scoped to that copy only and
+# leaves unrelated versions of the same package alone (see the audit log
+# evaluation). Only ip-address sits on a production dependency path; the other
+# five are dev or CLI paths.
 overrides:
   deepmerge-ts: 8.0.2
   # GHSA-qqgx-2p2h-9c37 (ini <1.3.6): the abandoned global-prefix@3.0.0 chain
@@ -68,3 +72,17 @@ overrides:
   # the (unused) MySQL provider of the Prisma CLI; this project is PostgreSQL.
   # Minimum safe would be 3.23.1; we track latest.
   mysql2: 3.24.4
+  # GHSA-qw65-cvwx-89v3 (authority injection via an unvalidated port),
+  # GHSA-58mr-gqgx-xq4g (host confusion via an unclosed bracket) and
+  # GHSA-hrr3-gc8f-f4qj (inconsistent host case normalization): ajv@8.20.0
+  # (the latest) allows fast-uri ^3.0.1, and stylelint's table@6.9.0 shares
+  # that edge, so the range already admits the fix — the lockfile had merely
+  # frozen the vulnerable 3.1.6. Scoped to the vulnerable range so a future
+  # fast-uri 4.x dependency is not pinned back.
+  'fast-uri@<3.1.8': 3.1.8
+  # GHSA-j6r3-76f7-8jcv (isInSubnet() compares addresses of different
+  # families) and GHSA-h3mg-xc3c-68pw (unbounded Address6 parse diagnostic):
+  # express-rate-limit@8.7.0 (the latest) allows ip-address ^10.2.0, but pnpm
+  # will not re-resolve a dependency of a peer-suffixed snapshot, so the
+  # lockfile kept the vulnerable 10.7.0. Scoped to the vulnerable range.
+  'ip-address@<10.7.1': 10.7.2
