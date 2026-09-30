@@ -9,8 +9,6 @@ applicable change types — `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`
 change type is omitted for releases that have no changes of that kind. Entries describe the effect
 on people who run and use Custotal, not the internal commit history.
 
-## [Unreleased]
-
 ## [1.0.2] - 2026-09-30
 
 ### Security
@@ -30,24 +28,6 @@ on people who run and use Custotal, not the internal commit history.
     ([GHSA-58mr-gqgx-xq4g](https://github.com/advisories/GHSA-58mr-gqgx-xq4g)), and percent-encoded
     octets that evade host case normalization
     ([GHSA-hrr3-gc8f-f4qj](https://github.com/advisories/GHSA-hrr3-gc8f-f4qj))
-
-### Documentation
-
-- docs: add user-guide
-
-### Maintenance
-
-- chore: upgrade dependencies
-- chore(deps-dev): bump the root-dev-dependencies group with 5 updates
-- chore(deps): bump tailwind-merge from 3.6.0 to 3.7.0
-- chore(deps): bump nodemailer from 10.0.8 to 10.0.10
-- chore(deps): bump react-router from 8.3.1 to 8.4.0
-- chore(deps-dev): bump the root-dev-dependencies group with 4 updates
-- chore(deps): bump the github-actions group with 6 updates
-- chore: update ci release workflow
-- chore: add codecov
-- chore: redesign brand icon
-- chore: update release workflow
 
 ## [1.0.1] - 2026-09-15
 
