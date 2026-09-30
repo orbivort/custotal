@@ -136,8 +136,10 @@ rather than a command run on someone's laptop:
    example `1.1.0`). It refuses a version whose tag already exists, rewrites `version` in
    `package.json`, `packages/backend/package.json` and `packages/frontend/package.json`, drafts a
    Keep a Changelog entry from the Conventional Commits merged since the previous release tag, pushes
-   `release/vX.Y.Z`, and opens a `chore(release): vX.Y.Z` pull request. Notes already staged under
-   `## [Unreleased]` in `CHANGELOG.md` are drained into the new entry, so hand-written prose survives.
+   `release/vX.Y.Z`, and opens a `chore(release): vX.Y.Z` pull request. A `## [Unreleased]` section in
+   `CHANGELOG.md` is renamed in place to the new version, so hand-written prose staged under it
+   survives verbatim; when the file has no such section, the new entry is inserted above the previous
+   release.
 2. **Review and merge** — edit the changelog on the pull request branch, then merge. **Merging is the
    approval**: nothing is tagged or published before that point.
 3. **Finalize and publish** — the merged pull request triggers

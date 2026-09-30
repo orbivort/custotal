@@ -305,17 +305,32 @@ jobs:
            * keeping every section verbatim so hand-wrapped prose and nested
            * lists survive the move. An empty body — the state when the file
            * carries no `## [Unreleased]` section — yields no sections.
+           *
+           * A category that appears more than once is folded into its first
+           * heading, so a release can never carry two `### Fixed` sections.
            */
           function splitUnreleased(body) {
             const headings = [...body.matchAll(/^###\s+(.+?)\s*$/gm)];
             const preamble = (headings.length > 0 ? body.slice(0, headings[0].index) : body).trim();
             const sections = [];
+            const byTitle = new Map();
 
             headings.forEach((heading, index) => {
               const start = heading.index + heading[0].length;
               const end = index + 1 < headings.length ? headings[index + 1].index : body.length;
               const raw = body.slice(start, end).trim();
-              if (raw !== '') sections.push({ title: heading[1].trim(), raw });
+              if (raw === '') return;
+
+              const title = heading[1].trim();
+              const existing = byTitle.get(title);
+              if (existing !== undefined) {
+                existing.raw = `${existing.raw}\n${raw}`;
+                return;
+              }
+
+              const section = { title, raw };
+              byTitle.set(title, section);
+              sections.push(section);
             });
 
             return { preamble, sections };
@@ -334,11 +349,14 @@ jobs:
 
           const source = readFileSync(CHANGELOG, 'utf8');
 
-          // An `## [Unreleased]` section is optional. When present its body is a
-          // staging area for hand-written notes, drained into the new entry below
-          // and left empty for the next release; when absent the new entry is
-          // inserted directly above the newest release. Both states are
-          // supported, so the file never has to carry a section it does not want.
+          // An `## [Unreleased]` section is optional. When the file carries one
+          // its heading is renamed in place to the new release — everything
+          // staged under it is preserved verbatim and no separate section is
+          // appended, so the file never ends up with both an `[Unreleased]` and
+          // a released heading for the same notes. When the file has no staging
+          // section the new entry is inserted directly above the newest release
+          // instead. Both states are supported, so the file never has to carry a
+          // section it does not want.
           const unreleased = /^## \[Unreleased\][^\n]*$/m.exec(source);
 
           /** Index at which the released history begins: the first `## ` at or after `from`. */
@@ -348,27 +366,44 @@ jobs:
           };
 
           // Three pieces get rewritten below: everything above the release list
-          // (`header`, plus the staging heading when the file has one), the
+          // (`header`, which ends where the staging heading starts), the
           // hand-written body staged for this release (`curatedBody`), and the
           // released sections plus link definitions (`rest`).
           let header;
-          let heading;
           let curatedBody;
           let rest;
 
           if (unreleased === null) {
             const history = historyStart(source, 0);
             header = source.slice(0, history);
-            heading = '';
             curatedBody = '';
             rest = source.slice(history);
           } else {
             const bodyStart = unreleased.index + unreleased[0].length;
             const history = historyStart(source, bodyStart);
+            // `header` stops at the `## [Unreleased]` heading, so writing the new
+            // `## [VERSION] - <date>` section in its place renames that heading
+            // rather than adding a second one beneath it.
             header = source.slice(0, unreleased.index);
-            heading = `${unreleased[0]}\n\n`;
             curatedBody = source.slice(bodyStart, history);
             rest = source.slice(history);
+          }
+
+          // A release that was merged but never tagged leaves a `## [<version>]`
+          // section for the very version being drafted in the history. Fold what
+          // it carries into the new entry and drop the stale heading, so the
+          // changelog never ends up with two sections for one version.
+          const versionHeading = new RegExp(
+            `^##\\s+\\[${VERSION.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\][^\\n]*$`,
+            'm',
+          );
+          for (let stale = versionHeading.exec(rest); stale !== null; stale = versionHeading.exec(rest)) {
+            const staleStart = stale.index + stale[0].length;
+            const nextOffset = /^##\s/m.exec(rest.slice(staleStart))?.index;
+            const staleEnd = nextOffset === undefined ? rest.length : staleStart + nextOffset;
+            curatedBody = `${curatedBody}\n${rest.slice(staleStart, staleEnd)}`;
+            rest = `${rest.slice(0, stale.index)}${rest.slice(staleEnd)}`;
+            console.log(`Folded a pre-existing [${VERSION}] section into the new entry.`);
           }
 
           const { preamble, sections: curated } = splitUnreleased(curatedBody);
@@ -423,18 +458,34 @@ jobs:
             /^\[Unreleased\]:\s*(\S+?)\/compare\//m.exec(source)?.[1] ??
             /^\[[^\]]+\]:\s*(\S+?)\/releases\/tag\//m.exec(source)?.[1] ??
             `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}`;
-          const links = [
-            // Only maintained while the file carries a staging section.
-            ...(unreleased === null ? [] : [`[Unreleased]: ${repoBase}/compare/${TAG}...HEAD`]),
-            `[${VERSION}]: ${repoBase}/releases/tag/${TAG}`,
-          ].join('\n');
-          const unreleasedLink = /^\[Unreleased\]:[^\n]*$/m;
+          // The result carries no staging section — the `[Unreleased]` heading
+          // was renamed, or there never was one — so its definition goes with
+          // it. Definitions are kept newest first, matching the sections:
+          // `[VERSION]` is inserted above the newest released version rather
+          // than appended after the oldest.
+          const definition = /^\[([^\]]+)\]:[^\n]*$/;
+          const lines = rest.split('\n').filter((line) => {
+            const match = definition.exec(line);
+            return match === null || (match[1] !== 'Unreleased' && match[1] !== VERSION);
+          });
 
-          const linkBlock = unreleasedLink.test(rest)
-            ? rest.replace(unreleasedLink, links)
-            : `${rest.trimEnd()}\n\n${links}\n`;
+          const versionLink = `[${VERSION}]: ${repoBase}/releases/tag/${TAG}`;
+          const anchor = lines.findIndex((line) => definition.test(line));
 
-          writeFileSync(CHANGELOG, `${header}${heading}${section}${linkBlock}`);
+          let linkBlock;
+          if (anchor === -1) {
+            // No released version to sit above yet: start the block, keeping the
+            // blank line that separates it from the section above.
+            const body = lines.join('\n').trimEnd();
+            linkBlock = body === '' ? `${versionLink}\n` : `${body}\n\n${versionLink}\n`;
+          } else {
+            lines.splice(anchor, 0, versionLink);
+            linkBlock = lines.join('\n');
+          }
+
+          // `header` ends where the `[Unreleased]` heading used to start, so
+          // `section` — which opens with `## [VERSION]` — takes its place.
+          writeFileSync(CHANGELOG, `${header}${section}${linkBlock}`);
 
           console.log(
             `Drafted ${VERSION}: ${parts.length} section(s), ${new Set([...additions.values()].flat()).size} generated entr(ies).`,
@@ -449,8 +500,10 @@ jobs:
           - \`version\` \`${PREVIOUS_VERSION}\` -> \`${VERSION}\` in \`package.json\`,
             \`packages/backend/package.json\` and \`packages/frontend/package.json\`. The backend
             manifest is read at runtime, so \`GET /api/health\` reports the new version.
-          - A \`## [${VERSION}] - ${date}\` section in \`CHANGELOG.md\`, placed above the previous
-            release and merged with any notes already staged for this one.
+          - A \`## [${VERSION}] - ${date}\` section in \`CHANGELOG.md\`. When notes are already
+            staged under \`## [Unreleased]\`, that heading is renamed to the version in place so
+            every staged entry survives; otherwise the section is inserted above the previous
+            release.
 
           ### Review checklist
 
