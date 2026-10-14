@@ -52,7 +52,7 @@
     "@types/node": "catalog:",
     "@types/supertest": "^7.2.1",
     "prisma": "^7.9.1",
-    "supertest": "^7.3.0",
+    "supertest": "^7.3.1",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
