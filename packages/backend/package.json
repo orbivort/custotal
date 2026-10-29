@@ -35,14 +35,14 @@
     "test:coverage": "pnpm --workspace-root exec vitest run --coverage --project backend-unit --project backend-integration --project backend-e2e"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.10.0",
-    "@prisma/client": "^7.9.1",
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1",
     "bcryptjs": "^3.0.2",
     "cookie-parser": "^1.4.7",
     "express": "^5.3.0",
-    "express-rate-limit": "^8.0.1",
-    "nodemailer": "^10.1.0",
-    "pino": "^10.3.1",
+    "express-rate-limit": "^8.7.1",
+    "nodemailer": "^10.2.1",
+    "pino": "^10.4.0",
     "pino-http": "^11.0.0"
   },
   "devDependencies": {
