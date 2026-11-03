@@ -18,8 +18,10 @@ catalog:
   '@types/node': ^24.13.3
   # Vitest and its satellite packages MUST share one version across the whole
   # workspace; the catalog guarantees that for root + every package.
-  vitest: ^4.1.10
-  '@vitest/coverage-v8': ^4.1.10
+  # >=4.1.12 is required by GHSA-qxg6-89mg-rqv8 and GHSA-xp26-3454-mjgp
+  # (@vitest/mocker code injection / Windows traversal).
+  vitest: ^4.1.12
+  '@vitest/coverage-v8': ^4.1.12
 
 # --- Dependency resolution --------------------------------------------------
 # The defaults are the recommended ones for a strict monorepo:
@@ -79,10 +81,46 @@ overrides:
   # that edge, so the range already admits the fix — the lockfile had merely
   # frozen the vulnerable 3.1.6. Scoped to the vulnerable range so a future
   # fast-uri 4.x dependency is not pinned back.
-  'fast-uri@<3.1.8': 3.1.8
+  # Also covers GHSA-w74x-v6f9-j3xg (percent-encoded scheme spoofing),
+  # GHSA-wjr9-j795-jxcr (host confusion via WHATWG canonicalization),
+  # GHSA-xhq7-xmqj-769h (path equivalence) and GHSA-333x-w4r6-6crp (scheme
+  # injection), all fixed in 3.1.9. `three` dist-tag is the patched 3.x line.
+  'fast-uri@<3.1.9': 3.1.9
   # GHSA-j6r3-76f7-8jcv (isInSubnet() compares addresses of different
   # families) and GHSA-h3mg-xc3c-68pw (unbounded Address6 parse diagnostic):
   # express-rate-limit@8.7.0 (the latest) allows ip-address ^10.2.0, but pnpm
   # will not re-resolve a dependency of a peer-suffixed snapshot, so the
   # lockfile kept the vulnerable 10.7.0. Scoped to the vulnerable range.
-  'ip-address@<10.7.1': 10.7.2
+  # GHSA-rxp7-6hxx-x8q5 (quadratic zone-identifier matching) adds <10.7.4.
+  'ip-address@<10.7.4': 10.7.5
+  # GHSA-68fv-2mgg-jv7q (event-loop DoS via indexed section offsets):
+  # magicast@0.5.4 and postcss@8.5.x both allow source-map-js ^1.2.1, so the
+  # range admits the fix; scoped to the vulnerable copies only.
+  'source-map-js@<1.2.2': 1.2.2
+  # GHSA-27r3-jxmh-p828 (DoS via trailing bytes after a compressed body):
+  # express@5.3.0 (the latest) allows body-parser ^2.3.0.
+  'body-parser@<2.4.0': 2.4.0
+  # GHSA-6pq8-jhm2-2vcw (uncaught TypeError on arrayFormat 'comma'):
+  # express@5.3.0 allows qs ^6.16.0; 6.16.2 stays on the same minor line.
+  'qs@<6.16.1': 6.16.2
+  # GHSA-xjj6-f33q-929c, GHSA-4w7w-5xrc-9h26, GHSA-2m5v-pch6-74hx,
+  # GHSA-qrxm-fqhp-jwvm, GHSA-4qv8-2p9j-2685, GHSA-f72v-6w45-q472,
+  # GHSA-9fm3-97px-rjf6 and GHSA-55wc-3pg8-jfw6 all affect undici <8.12.2;
+  # jsdom@30.1.1 (dev-only, via vitest) allows undici ^8.10.2.
+  'undici@<8.12.2': 8.12.3
+  # GHSA-rj75-hqrm-r3gf (quadratic flat-selector parsing): stylelint@17.15.0
+  # and the @csstools selector packages allow postcss-selector-parser ^7.1.5.
+  'postcss-selector-parser@<7.1.6': 7.1.7
+  # GHSA-g3hv-75wg-m249 (DoS via globparts amplification): eslint@10.14.0 and
+  # @eslint/config-array@0.23.5 pin minimatch ^10.2.x, which cannot reach the
+  # fix (there is no patched 10.x), so the whole vulnerable line moves to 11.
+  'minimatch@<11.0.1': 11.0.4
+  # GHSA-mrhx-c7xc-m3w5 (memory exhaustion on constrained collections):
+  # eslint-plugin-react-hooks@7.1.1 allows zod ^3.25.0 || ^4.0.0. The selector
+  # only rewrites the 4.x copies, leaving any future zod 3.x dependency alone.
+  'zod@>=4.0.0 <4.6.6': 4.6.7
+  # GHSA-587h-7wmj-h5pm, GHSA-698v-4r3x-3vcv, GHSA-r825-w8mm-5pxw,
+  # GHSA-rq7h-c2jc-7f22, GHSA-vfpm-58rq-9qcg and GHSA-9jrq-w75r-8gcw affect
+  # vite 8.3.0-8.3.2; every path to it starts at vitest, which accepts
+  # ^6 || ^7 || ^8, so the range admits the fix.
+  'vite@<8.3.3': 8.3.5
