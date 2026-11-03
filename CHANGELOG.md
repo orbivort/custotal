@@ -9,7 +9,7 @@ applicable change types — `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`
 change type is omitted for releases that have no changes of that kind. Entries describe the effect
 on people who run and use Custotal, not the internal commit history.
 
-## [Unreleased]
+## [1.0.3] - 2026-11-03
 
 ### Security
 
@@ -81,6 +81,21 @@ on people who run and use Custotal, not the internal commit history.
     ([GHSA-6pq8-jhm2-2vcw](https://github.com/advisories/GHSA-6pq8-jhm2-2vcw))
   - `minimatch` 10.2.6 → 11.0.4 — fixes a potential denial of service via globparts amplification
     ([GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249))
+
+### Changed
+
+- Merge branch 'main' of https://github.com/orbivort/custotal
+
+### Fixed
+
+- fix: security vulnerability remediation
+
+### Maintenance
+
+- chore(deps): bump nodemailer from 10.0.13 to 10.1.0
+- chore(deps): bump express from 5.2.1 to 5.3.0
+- chore(deps): bump nodemailer from 10.0.10 to 10.0.13
+- ci: update release prepare workflow
 
 ## [1.0.2] - 2026-09-30
 
@@ -177,7 +192,7 @@ control.
   attestation, and the dependency-review workflow blocks newly introduced high-severity advisories
   and copyleft licenses.
 
-[Unreleased]: https://github.com/orbivort/custotal/compare/v1.0.2...HEAD
+[1.0.3]: https://github.com/orbivort/custotal/releases/tag/v1.0.3
 [1.0.2]: https://github.com/orbivort/custotal/releases/tag/v1.0.2
 [1.0.1]: https://github.com/orbivort/custotal/releases/tag/v1.0.1
 [1.0.0]: https://github.com/orbivort/custotal/releases/tag/v1.0.0
