@@ -35,7 +35,7 @@
     "test:coverage": "pnpm --workspace-root exec vitest run --coverage --project backend-unit --project backend-integration --project backend-e2e"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "bcryptjs": "^3.0.2",
     "cookie-parser": "^1.4.7",
