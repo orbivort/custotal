@@ -131,21 +131,31 @@ change per pull request is easier to review and land.
 Dependabot proposals have a fixed shape, configured in
 [`.github/dependabot.yml`](.github/dependabot.yml):
 
-- **One grouped pull request per manifest per week** carries every minor and patch update:
-  `root-non-major`, `frontend-non-major`, `backend-non-major`, `backend-base-image`,
-  `frontend-base-image`, `compose-images`, and `github-actions`.
+- **One grouped pull request per week** carries every minor and patch update across the workspace:
+  `workspace-non-major`, `backend-base-image`, `frontend-base-image`, `compose-images`, and
+  `github-actions`. The npm entry sits at the repository root and covers the root manifest plus
+  `packages/*`.
 - **Major updates arrive as individual pull requests.** They match no group by design, so treat each
   one as a migration: read the upstream breaking-change notes and land it on its own.
 - **Security updates are never grouped** and skip the release cooldown, so they open on their own and
   should not wait for the weekly batch.
 
+That single root npm entry is deliberate, not cosmetic. pnpm keeps one shared `pnpm-lock.yaml` and
+resolves `catalog:` specifiers through `pnpm-workspace.yaml`, and Dependabot only carries out that
+workspace-aware update when the entry starts at the root. A per-package entry such as
+`/packages/frontend` resolves in isolation, fails before it can write the lockfile, and still opens
+a manifest-only pull request — which then fails CI on `pnpm install --frozen-lockfile` with
+`ERR_PNPM_OUTDATED_LOCKFILE`. If such a pull request ever appears, close it and let the root-grouped
+one carry the bump.
+
 A consolidated pull request must never contain a major bump. If one shows up inside a group, the
 group rules have drifted from the intent above — fix `dependabot.yml` in that pull request instead of
 merging the mix.
 
-Because a batch shares one CI run, a single red check (or a `dependency-review` failure on one bump)
-blocks every non-major update that week. Exclude the offending dependency with `exclude-patterns` and
-let the rest land, rather than closing the whole group.
+Because the batch spans the workspace, a single CI run covers the three manifests, the catalog, and
+the lockfile together. One red check (or a `dependency-review` failure on one bump) blocks every
+non-major update that week. Exclude the offending dependency with `exclude-patterns` and let the rest
+land, rather than closing the whole group.
 
 ## Release process
 

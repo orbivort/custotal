@@ -2,8 +2,8 @@
 #
 # Policy, enforced by the `groups` rules below — do not weaken without review:
 #
-#   1. Minor and patch updates for one manifest land in ONE grouped pull request
-#      per week. Groups never split by dependency type, so production and
+#   1. Minor and patch updates for the whole workspace land in ONE grouped pull
+#      request per week. Groups never split by dependency type, so production and
 #      development bumps share a single PR instead of one PR each.
 #   2. Every major update is raised as its own pull request. Groups are limited
 #      to `update-types: [minor, patch]`, so a major matches no group and
@@ -18,8 +18,19 @@
 #      still get GitHub's built-in 3-day default.
 #
 # Ecosystems:
-#   npm            — root, frontend, backend. pnpm workspace entries stay
-#                    per-directory so lockfile churn is scoped to the package.
+#   npm            — ONE entry at the workspace root. It covers the root manifest
+#                    and every package under packages/*, which is not a style
+#                    choice but the only mode that works: pnpm keeps a single
+#                    shared pnpm-lock.yaml at the root and resolves "catalog:"
+#                    specifiers through pnpm-workspace.yaml, and Dependabot only
+#                    performs that workspace-aware step when the update starts
+#                    at the root. A per-directory npm entry (e.g.
+#                    /packages/frontend) resolves the subpackage in isolation,
+#                    fails before it can write the lockfile, and still opens a
+#                    manifest-only PR — which CI rejects under
+#                    `pnpm install --frozen-lockfile` with
+#                    ERR_PNPM_OUTDATED_LOCKFILE. Do not reintroduce
+#                    /packages/* npm entries.
 #   docker         — backend/frontend Dockerfiles. Only literal image tags are
 #                    machine-trackable; the Node base image is driven by the
 #                    NODE_VERSION build ARG and is bumped by hand.
@@ -41,7 +52,7 @@ updates:
       # Off-peak and after the Monday 03:00 security scan.
       time: '04:00'
       timezone: Etc/UTC
-    # One grouped PR per group plus one PR per major update.
+    # One grouped PR for the whole workspace plus one PR per major update.
     open-pull-requests-limit: 10
     commit-message:
       prefix: chore
@@ -50,7 +61,7 @@ updates:
       default-days: 7
       semver-major-days: 14
     groups:
-      root-non-major:
+      workspace-non-major:
         patterns:
           - '*'
         update-types:
@@ -59,58 +70,6 @@ updates:
     ignore:
       # @types/node tracks the pinned runtime (engines.node ^24); its major
       # releases describe APIs Node 24 does not have.
-      - dependency-name: '@types/node'
-        update-types:
-          - version-update:semver-major
-
-  - package-ecosystem: npm
-    directory: '/packages/frontend'
-    schedule:
-      interval: weekly
-      day: monday
-      time: '04:00'
-      timezone: Etc/UTC
-    open-pull-requests-limit: 10
-    commit-message:
-      prefix: chore
-      include: scope
-    cooldown:
-      default-days: 7
-      semver-major-days: 14
-    groups:
-      frontend-non-major:
-        patterns:
-          - '*'
-        update-types:
-          - minor
-          - patch
-    ignore:
-      - dependency-name: '@types/node'
-        update-types:
-          - version-update:semver-major
-
-  - package-ecosystem: npm
-    directory: '/packages/backend'
-    schedule:
-      interval: weekly
-      day: monday
-      time: '04:00'
-      timezone: Etc/UTC
-    open-pull-requests-limit: 10
-    commit-message:
-      prefix: chore
-      include: scope
-    cooldown:
-      default-days: 7
-      semver-major-days: 14
-    groups:
-      backend-non-major:
-        patterns:
-          - '*'
-        update-types:
-          - minor
-          - patch
-    ignore:
       - dependency-name: '@types/node'
         update-types:
           - version-update:semver-major
