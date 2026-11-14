@@ -126,6 +126,27 @@ with a regression test.
 Reviewers aim to respond within a few business days. Please keep pull requests focused — one logical
 change per pull request is easier to review and land.
 
+## Dependency updates
+
+Dependabot proposals have a fixed shape, configured in
+[`.github/dependabot.yml`](.github/dependabot.yml):
+
+- **One grouped pull request per manifest per week** carries every minor and patch update:
+  `root-non-major`, `frontend-non-major`, `backend-non-major`, `backend-base-image`,
+  `frontend-base-image`, `compose-images`, and `github-actions`.
+- **Major updates arrive as individual pull requests.** They match no group by design, so treat each
+  one as a migration: read the upstream breaking-change notes and land it on its own.
+- **Security updates are never grouped** and skip the release cooldown, so they open on their own and
+  should not wait for the weekly batch.
+
+A consolidated pull request must never contain a major bump. If one shows up inside a group, the
+group rules have drifted from the intent above — fix `dependabot.yml` in that pull request instead of
+merging the mix.
+
+Because a batch shares one CI run, a single red check (or a `dependency-review` failure on one bump)
+blocks every non-major update that week. Exclude the offending dependency with `exclude-patterns` and
+let the rest land, rather than closing the whole group.
+
 ## Release process
 
 Releases are cut by two workflows that hand off to a third, so a release is a reviewable pull request

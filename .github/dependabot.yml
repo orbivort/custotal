@@ -1,12 +1,35 @@
 # Dependabot: automated dependency updates.
 #
-#   npm (root, frontend, backend) — pnpm workspace packages are updated
-#     per-directory so lockfile churn stays scoped to the touched package.
-#   github-actions — keeps the CI action versions current.
+# Policy, enforced by the `groups` rules below — do not weaken without review:
 #
-# All updates are grouped per package to keep PR count manageable, and the
-# shared pnpm catalog (pnpm-workspace.yaml) stays the single source of truth
-# for versions referenced via "catalog:".
+#   1. Minor and patch updates for one manifest land in ONE grouped pull request
+#      per week. Groups never split by dependency type, so production and
+#      development bumps share a single PR instead of one PR each.
+#   2. Every major update is raised as its own pull request. Groups are limited
+#      to `update-types: [minor, patch]`, so a major matches no group and
+#      Dependabot opens an individual PR for it. Never add `major` to a group's
+#      `update-types`, and never drop the key: omitting it means "all updates".
+#   3. Security updates are deliberately not grouped (`applies-to` defaults to
+#      `version-updates`) and are exempt from the cooldowns below, so a fix
+#      reaches review as its own PR immediately.
+#   4. `cooldown` withholds new releases before they are proposed, mirroring the
+#      `minimumReleaseAge` supply-chain gate in pnpm-workspace.yaml. It applies
+#      to version updates only; ecosystems without an explicit `cooldown` block
+#      still get GitHub's built-in 3-day default.
+#
+# Ecosystems:
+#   npm            — root, frontend, backend. pnpm workspace entries stay
+#                    per-directory so lockfile churn is scoped to the package.
+#   docker         — backend/frontend Dockerfiles. Only literal image tags are
+#                    machine-trackable; the Node base image is driven by the
+#                    NODE_VERSION build ARG and is bumped by hand.
+#   docker-compose — the root compose stack.
+#   github-actions — CI action versions.
+#
+# `engines` and `packageManager` are pinned manually and are not managed by
+# Dependabot, so they need no `ignore` entry. Shared versions live in the pnpm
+# catalog (pnpm-workspace.yaml); keep it the single source of truth for
+# everything referenced via "catalog:".
 version: 2
 
 updates:
@@ -15,78 +38,155 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
+      # Off-peak and after the Monday 03:00 security scan.
+      time: '04:00'
+      timezone: Etc/UTC
+    # One grouped PR per group plus one PR per major update.
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      include: scope
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
     groups:
-      root-dev-dependencies:
-        dependency-type: development
+      root-non-major:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
     ignore:
-      # Node/pnpm engines are pinned deliberately; do not auto-bump.
-      - dependency-name: 'packageManager'
+      # @types/node tracks the pinned runtime (engines.node ^24); its major
+      # releases describe APIs Node 24 does not have.
+      - dependency-name: '@types/node'
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: npm
     directory: '/packages/frontend'
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
+      time: '04:00'
+      timezone: Etc/UTC
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      include: scope
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
     groups:
-      frontend-dependencies:
-        dependency-type: production
-      frontend-dev-dependencies:
-        dependency-type: development
+      frontend-non-major:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: '@types/node'
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: npm
     directory: '/packages/backend'
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
+      time: '04:00'
+      timezone: Etc/UTC
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      include: scope
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
     groups:
-      backend-dependencies:
-        dependency-type: production
-      backend-dev-dependencies:
-        dependency-type: development
+      backend-non-major:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: '@types/node'
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: docker
     directory: '/packages/backend'
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
+      time: '04:00'
+      timezone: Etc/UTC
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      include: scope
     groups:
       backend-base-image:
         patterns:
           - '*'
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: docker
     directory: '/packages/frontend'
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
+      time: '04:00'
+      timezone: Etc/UTC
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      include: scope
     groups:
       frontend-base-image:
         patterns:
           - '*'
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: docker-compose
     directory: '/'
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
+      time: '04:00'
+      timezone: Etc/UTC
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      include: scope
     groups:
       compose-images:
         patterns:
           - '*'
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: github-actions
     directory: '/'
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
+      time: '04:00'
+      timezone: Etc/UTC
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      include: scope
     groups:
       github-actions:
         patterns:
           - '*'
+        update-types:
+          - minor
+          - patch
