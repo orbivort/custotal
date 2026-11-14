@@ -15,7 +15,7 @@ packages:
 # version bump touches a single place instead of every package.json.
 catalog:
   typescript: ^6.0.3
-  '@types/node': ^24.13.3
+  '@types/node': ^24.19.2
   # Vitest and its satellite packages MUST share one version across the whole
   # workspace; the catalog guarantees that for root + every package.
   # >=4.1.12 is required by GHSA-qxg6-89mg-rqv8 and GHSA-xp26-3454-mjgp
