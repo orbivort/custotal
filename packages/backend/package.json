@@ -40,8 +40,8 @@
     "bcryptjs": "^3.0.2",
     "cookie-parser": "^1.4.7",
     "express": "^5.3.0",
-    "express-rate-limit": "^8.7.3",
-    "nodemailer": "^10.4.0",
+    "express-rate-limit": "^8.7.4",
+    "nodemailer": "^10.6.0",
     "pino": "^10.4.0",
     "pino-http": "^11.0.0"
   },
