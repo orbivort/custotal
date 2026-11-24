@@ -53,6 +53,12 @@ minimumReleaseAgeExclude:
 # in 8.0.0). The override is safe: @prisma/config only merges plain
 # objects/arrays. Remove once Prisma depends on deepmerge-ts >= 8.
 #
+# `@prisma/config` also pins effect to exactly 3.20.0, which sits inside the
+# vulnerable <=3.22.0 range of GHSA-7589-6fvf-x4pw (ReDoS in the regex compiled
+# by Schema.TemplateLiteral). @prisma/config is only the config loader used by
+# the Prisma CLI (`prisma.config.ts`); effect is never imported by the backend
+# at runtime, so a 3.22.x patch release is the whole fix.
+#
 # The remaining overrides below pin patched transitive dependencies. In each
 # case the parent's range already admits the fix but the tree had resolved to
 # the vulnerable version, so the override is scoped to that copy only and
@@ -61,6 +67,10 @@ minimumReleaseAgeExclude:
 # five are dev or CLI paths.
 overrides:
   deepmerge-ts: 8.0.2
+  # Minimum patched is 3.22.1; we track the 3.x head. Scoped to the vulnerable
+  # range so a future effect 4.x dependency is not pinned back. Remove once
+  # @prisma/config allows effect >= 3.22.1 itself.
+  'effect@<3.22.1': 3.22.5
   # GHSA-qqgx-2p2h-9c37 (ini <1.3.6): the abandoned global-prefix@3.0.0 chain
   # under stylelint pins ini ^1.3.5, and current stylelint (17.15.0) still
   # depends on global-modules ^2.0.0. Scoped to 1.3.5 so nothing else moves.

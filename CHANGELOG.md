@@ -9,6 +9,17 @@ applicable change types — `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`
 change type is omitted for releases that have no changes of that kind. Entries describe the effect
 on people who run and use Custotal, not the internal commit history.
 
+## [Unreleased]
+
+### Security
+
+- `effect` 3.20.0 → 3.22.5 (CLI-only, pinned by `@prisma/config`) — fixes a regular expression denial
+  of service in `Schema.TemplateLiteral`: a template with two or more `Schema.String` spans compiles
+  to a regex with ambiguous wildcards, so match time grows cubically with input length and a single
+  long non-matching string can stall the event loop
+  ([GHSA-7589-6fvf-x4pw](https://github.com/advisories/GHSA-7589-6fvf-x4pw)). The package is reached
+  only through the Prisma CLI config loader and is never imported by the API at runtime.
+
 ## [1.0.3] - 2026-11-03
 
 ### Security
@@ -192,6 +203,7 @@ control.
   attestation, and the dependency-review workflow blocks newly introduced high-severity advisories
   and copyleft licenses.
 
+[Unreleased]: https://github.com/orbivort/custotal/compare/v1.0.3...HEAD
 [1.0.3]: https://github.com/orbivort/custotal/releases/tag/v1.0.3
 [1.0.2]: https://github.com/orbivort/custotal/releases/tag/v1.0.2
 [1.0.1]: https://github.com/orbivort/custotal/releases/tag/v1.0.1
