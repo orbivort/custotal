@@ -9,7 +9,7 @@ applicable change types — `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`
 change type is omitted for releases that have no changes of that kind. Entries describe the effect
 on people who run and use Custotal, not the internal commit history.
 
-## [Unreleased]
+## [1.0.4] - 2026-11-24
 
 ### Security
 
@@ -19,6 +19,16 @@ on people who run and use Custotal, not the internal commit history.
   long non-matching string can stall the event loop
   ([GHSA-7589-6fvf-x4pw](https://github.com/advisories/GHSA-7589-6fvf-x4pw)). The package is reached
   only through the Prisma CLI config loader and is never imported by the API at runtime.
+
+### Maintenance
+
+- chore(deps): override effect to 3.22.5 to fix ReDoS in @prisma/config
+- chore(deps): bump the workspace-non-major group with 10 updates
+- chore(deps): bump nodemailer
+- chore(deps): bump the workspace-non-major group with 20 updates
+- ci: dependabot
+- chore(deps): bump express-rate-limit from 8.7.0 to 8.7.3
+- chore(deps): bump @prisma/client from 7.10.0 to 7.10.1
 
 ## [1.0.3] - 2026-11-03
 
@@ -203,7 +213,7 @@ control.
   attestation, and the dependency-review workflow blocks newly introduced high-severity advisories
   and copyleft licenses.
 
-[Unreleased]: https://github.com/orbivort/custotal/compare/v1.0.3...HEAD
+[1.0.4]: https://github.com/orbivort/custotal/releases/tag/v1.0.4
 [1.0.3]: https://github.com/orbivort/custotal/releases/tag/v1.0.3
 [1.0.2]: https://github.com/orbivort/custotal/releases/tag/v1.0.2
 [1.0.1]: https://github.com/orbivort/custotal/releases/tag/v1.0.1
